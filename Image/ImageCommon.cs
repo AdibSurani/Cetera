@@ -127,7 +127,7 @@ namespace Cetera
             }
         }
 
-        public static Bitmap LoadImage(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        public static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
         {
             var bmp = new Bitmap(width, height);
 

@@ -36,11 +36,12 @@ namespace Cetera
                         var fntz = new BCFNT(File.OpenRead(path));
                         BackgroundImage = fntz.bmp;
                         break;
-                    case ".bflim":
-                        BackgroundImage = BFLIM.Load(File.OpenRead(path));
+                    case ".xi":
+                        BackgroundImage = XI.Load(File.OpenRead(path));
                         break;
                     case ".bclim":
-                        BackgroundImage = BCLIM.Load(File.OpenRead(path));
+                    case ".bflim":
+                        BackgroundImage = BXLIM.Load(File.OpenRead(path));
                         break;
                     case ".msbt":
                         var msbt = new MSBT(File.OpenRead(path));
@@ -49,18 +50,14 @@ namespace Cetera
                     case ".arc":
                         var arc = new DARC(File.OpenRead(path));
                         label1.Text = string.Join("\r\n", arc.Select(i => $"{i.Path}: {i.Data.Length} bytes"));
-                        var ent = arc.FirstOrDefault(i => Path.GetExtension(i.Path) == ".bclim");
-                        if (ent != null) BackgroundImage = BCLIM.Load(new MemoryStream(ent.Data));
-                        else
-                        {
-                            ent = arc.FirstOrDefault(i => Path.GetExtension(i.Path) == ".bflim");
-                            if (ent != null) BackgroundImage = BFLIM.Load(new MemoryStream(ent.Data));
-                        }
+                        var ent = arc.FirstOrDefault(i => i.Path.EndsWith("lim"));
+                        if (ent != null) BackgroundImage = BXLIM.Load(new MemoryStream(ent.Data));
                         break;
                 }
                 //System.Diagnostics.Debug.WriteLine(label1.Text);
             };
 
+            new XF(File.OpenRead(@"C:\Users\Adib\Downloads\nrm_main.xf"));
             return;
             //var lyt = new BCLYT(File.OpenRead(@"C:\Users\Adib\Desktop\ms_normal.bclyt"));
             var lyt = new BCLYT(File.OpenRead(@"C:\Users\Adib\Desktop\TtrlTxt_U.bclyt"));

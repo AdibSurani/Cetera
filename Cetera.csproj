@@ -48,13 +48,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BCFNT.cs" />
+    <Compile Include="Font\BCFNT.cs" />
+    <Compile Include="Compression\CriWareCompression.cs" />
+    <Compile Include="Font\XF.cs" />
     <Compile Include="Image\BCLIM.cs" />
     <Compile Include="BCLYT.cs" />
     <Compile Include="Image\BFLIM.cs" />
     <Compile Include="Common.cs" />
     <Compile Include="Archive\DARC.cs" />
     <Compile Include="Image\ImageCommon.cs" />
+    <Compile Include="Image\XI.cs" />
     <Compile Include="IOExtensions.cs" />
     <Compile Include="OnionFS.cs" />
     <Compile Include="Image\RgEtc1.cs" />
@@ -93,13 +96,11 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Image\rg_etc1.dll">
+    <Content Include="rg_etc1.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Compression\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
