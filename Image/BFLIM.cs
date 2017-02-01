@@ -9,24 +9,24 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class BCLIM
+    class BFLIM
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct Header
         {
-            public Magic magic; // CLIM
+            public String4 magic; // FLIM
             public ByteOrder byteOrder;
             public int size;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
             private byte[] to_be_finished;
-            public Magic magic2;
+            public String4 magic2;
             public int stuff;
             public short width;
             public short height;
-            public ImageCommon.Format format;
-            public ImageCommon.Swizzle swizzle;
             byte b1;
             byte b2;
+            public ImageCommon.Format format;
+            public ImageCommon.Swizzle swizzle;
             int imgSize;
         }
 
@@ -36,7 +36,8 @@ namespace Cetera
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
                 var header = br.ReadStruct<Header>();
-                return ImageCommon.FromTexture(tex, header.width, header.height, header.format, header.swizzle);
+                var colors = ImageCommon.GetColorsFromTexture(tex, header.format);
+                return ImageCommon.LoadImage(colors, header.width, header.height, header.swizzle, true);
             }
         }
     }

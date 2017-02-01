@@ -14,21 +14,73 @@ namespace Cetera
         BigEndian = 0xFFFE
     }
 
-    [DebuggerDisplay("{(string)this}")]
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct Magic
+    static class CommonExtensions
     {
-        int value;
-        public static implicit operator string(Magic magic) => Encoding.ASCII.GetString(BitConverter.GetBytes(magic.value));
+        public static string ToCString(this byte[] bytes) => string.Concat(from b in bytes where b != 0 select (char)b);
     }
 
-    [DebuggerDisplay("{(string)this}")]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct Magic8
+    struct String4
     {
-        long value;
-        public static implicit operator string(Magic8 magic) => Encoding.ASCII.GetString(BitConverter.GetBytes(magic.value));
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
+        byte[] bytes;
+        public static implicit operator string(String4 s) => s.ToString();
+        public override string ToString() => bytes.ToCString();
     }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct String8
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+        byte[] bytes;
+        public static implicit operator string(String8 s) => s.ToString();
+        public override string ToString() => bytes.ToCString();
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct String16
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        byte[] bytes;
+        public static implicit operator string(String16 s) => s.ToString();
+        public override string ToString() => bytes.ToCString();
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct String20
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
+        byte[] bytes;
+        public static implicit operator string(String20 s) => s.ToString();
+        public override string ToString() => bytes.ToCString();
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct NW4CHeader
+    {
+        public String4 magic;
+        public ByteOrder byte_order;
+        public short header_size;
+        public int version;
+        public int file_size;
+        public int section_count;
+    };
+
+    [DebuggerDisplay("{Magic,nq}: {Data.Length} bytes")]
+    class NW4CSection
+    {
+        public string Magic { get; }
+        public byte[] Data { get; }
+        public object Object { get; set; }
+        
+        public NW4CSection(string magic, byte[] data)
+        {
+            Magic = magic;
+            Data = data;
+        }
+    }
+
+    
 
     class Common
     {

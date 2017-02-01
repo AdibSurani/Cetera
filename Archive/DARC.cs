@@ -22,7 +22,7 @@ namespace Cetera
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct Header
         {
-            public Magic magic;
+            public String4 magic;
             public ByteOrder byteOrder;
             public short headerSize;
             public int version;

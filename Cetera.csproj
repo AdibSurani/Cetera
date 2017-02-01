@@ -32,6 +32,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -47,13 +48,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BCLIM.cs" />
-    <Compile Include="BFLIM.cs" />
+    <Compile Include="BCFNT.cs" />
+    <Compile Include="Image\BCLIM.cs" />
+    <Compile Include="BCLYT.cs" />
+    <Compile Include="Image\BFLIM.cs" />
     <Compile Include="Common.cs" />
-    <Compile Include="DARC.cs" />
-    <Compile Include="ImageCommon.cs" />
+    <Compile Include="Archive\DARC.cs" />
+    <Compile Include="Image\ImageCommon.cs" />
     <Compile Include="IOExtensions.cs" />
     <Compile Include="OnionFS.cs" />
+    <Compile Include="Image\RgEtc1.cs" />
     <Compile Include="TestAppForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -89,9 +93,12 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="rg_etc1.dll">
+    <Content Include="Image\rg_etc1.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Compression\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -14,12 +14,22 @@ namespace Cetera
         // BinaryReader
         public static string ReadString(this BinaryReader br, Encoding encoding, int count) => encoding.GetString(br.ReadBytes(count));
         public static string ReadCString(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => br.ReadChar()).TakeWhile(c => c != 0));
+        public static string ReadCStringA(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)br.ReadByte()).TakeWhile(c => c != 0));
+        public static string ReadCStringW(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)br.ReadInt16()).TakeWhile(c => c != 0));
         public static unsafe T ReadStruct<T>(this BinaryReader br)
         {
             fixed (byte* pBuffer = br.ReadBytes(Marshal.SizeOf<T>()))
                 return Marshal.PtrToStructure<T>((IntPtr)pBuffer);
         }
         public static List<T> ReadMultiple<T>(this BinaryReader br, int count, Func<int, T> func) => Enumerable.Range(0, count).Select(func).ToList();
+        public static List<NW4CSection> ReadSections(this BinaryReader br)
+        {
+            return (from _ in Enumerable.Range(0, br.ReadStruct<NW4CHeader>().section_count)
+                    let magic = (string)br.ReadStruct<String4>()
+                    let data = br.ReadBytes(br.ReadInt32() - 8)
+                    select new NW4CSection(magic, data)
+                    ).ToList();
+        }
 
         // BinaryWriter
         public static void WriteString(this BinaryWriter bw, Encoding encoding, string str)
