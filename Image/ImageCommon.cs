@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -15,20 +16,23 @@ namespace Cetera
 
         public enum Format : byte
         {
-            L8, A8, LA44, LA88, HL88,
-            RGB565, RGB888, RGBA5551,
-            RGBA4444, RGBA8888,
-            ETC1, ETC1_A4, L4, A4
+            RGBA8888, RGB888,
+            RGBA5551, RGB565, RGBA4444,
+            LA88, HL88, L8, A8, LA44,
+            L4, A4, ETC1, ETC1A4
         }
 
         public enum Swizzle : byte
         {
-            Default, XiSwizzle = 1,
-            Rotate90 = 4, Transpose = 8
+            Default,
+            TransposeTile = 1,
+            Rotate90 = 4,
+            Transpose = 8
         }
 
-        public static IEnumerable<Color> GetColorsFromTexture(byte[] tex, Format format)
+        public static IEnumerable<Color> GetColorsFromTexture<T>(byte[] tex, T originalFormat) where T : struct, IConvertible
         {
+            var format = (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
             using (var br = new BinaryReader(new MemoryStream(tex)))
             {
                 int? nibble = null;
@@ -105,10 +109,10 @@ namespace Cetera
                             r = br.ReadByte();
                             break;
                         case Format.ETC1:
-                        case Format.ETC1_A4:
+                        case Format.ETC1A4:
                             if (etc1colors.Count == 0)
                             {
-                                var etc1alpha = (format == Format.ETC1_A4) ? br.ReadUInt64() : ulong.MaxValue;
+                                var etc1alpha = (format == Format.ETC1A4) ? br.ReadUInt64() : ulong.MaxValue;
                                 etc1colors = new Queue<Color>(RgEtc1.Unpack(br.ReadBytes(8), etc1alpha));
                             }
                             yield return etc1colors.Dequeue();
@@ -127,53 +131,62 @@ namespace Cetera
             }
         }
 
-        public static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        public unsafe static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
         {
-            var bmp = new Bitmap(width, height);
-
             int stride = (int)swizzle < 4 ? width : height;
             if (padToPowerOf2) stride = npo2(stride);
             if (stride < 8) stride = 8;
 
-            int i = 0;
-            foreach (var color in colors)
+            var bmp = new Bitmap(width, height);
+            var data = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            unsafe
             {
-                int x, y;
-                switch (swizzle)
+                int i = 0;
+                var ptr = (int*)data.Scan0;
+                foreach (var color in colors)
                 {
-                    case Swizzle.Default:
-                        x = (i / 64 % (stride / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                        y = (i / 64 / (stride / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                        break;
-                    case Swizzle.XiSwizzle:
-                        x = (i / 64 % (stride / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                        y = (i / 64 / (stride / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                        break;
-                    case Swizzle.Rotate90:
-                        x = (i / 64 / (stride / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                        y = (i / 64 % (stride / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                        y = stride - 1 - y;
-                        break;
-                    case Swizzle.Transpose:
-                        x = (i / 64 / (stride / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                        y = (i / 64 % (stride / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                        break;
-                    default:
-                        throw new NotSupportedException($"Unknown swizzle format {swizzle}");
-                }
-                if (0 <= x && x < width && 0 <= y && y < height)
-                {
-                    bmp.SetPixel(x, y, color);
-                }
+                    int x_out = (i / 64 % (stride / 8)) * 8;
+                    int y_out = (i / 64 / (stride / 8)) * 8;
+                    int x_in = (i / 4 & 4) | (i / 2 & 2) | (i & 1);
+                    int y_in = (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
+                    i++;
 
-                i++;
+                    int x, y;
+                    switch (swizzle)
+                    {
+                        case Swizzle.Default:
+                            x = x_out + x_in;
+                            y = y_out + y_in;
+                            break;
+                        case Swizzle.TransposeTile:
+                            x = x_out + y_in;
+                            y = y_out + x_in;
+                            break;
+                        case Swizzle.Rotate90:
+                            x = y_out + y_in;
+                            y = stride - 1 - (x_out + x_in);
+                            break;
+                        case Swizzle.Transpose:
+                            x = y_out + y_in;
+                            y = x_out + x_in;
+                            break;
+                        default:
+                            throw new NotSupportedException($"Unknown swizzle format {swizzle}");
+                    }
+                    if (0 <= x && x < width && 0 <= y && y < height)
+                    {
+                        ptr[data.Stride * y / 4 + x] = color.ToArgb();
+                    }
+                }
             }
+            bmp.UnlockBits(data);
             return bmp;
         }
         
+        // This is not yet implemented and will throw a NotImplentedException
         public static byte[] ToTexture(Bitmap bmp, Format format, Swizzle swizzle)
         {
-            throw new NotSupportedException("Need to make changes to some swizzle stuff");
+            throw new NotImplementedException("Need to make changes to some swizzle stuff");
             var ms = new MemoryStream();
             int width = bmp.Width, height = bmp.Height;
             int stride = Math.Max(8, npo2(height));
@@ -255,13 +268,13 @@ namespace Cetera
                             bw.Write(color.R);
                             break;
                         case Format.ETC1:
-                        case Format.ETC1_A4:
+                        case Format.ETC1A4:
                             etc1colors.Enqueue(color);
                             if (etc1colors.Count != 16) continue;
 
                             ulong alpha;
                             var packed = RgEtc1.Pack(etc1colors.ToList(), out alpha);
-                            if (format == Format.ETC1_A4) bw.Write(alpha);
+                            if (format == Format.ETC1A4) bw.Write(alpha);
                             bw.Write(packed);
                             etc1colors.Clear();
 

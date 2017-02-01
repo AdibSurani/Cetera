@@ -11,16 +11,19 @@ namespace Cetera
 {
     static class IOExtensions
     {
+        // General conversion
+        public static unsafe T ToStruct<T>(this byte[] buffer)
+        {
+            fixed (byte* pBuffer = buffer)
+                return Marshal.PtrToStructure<T>((IntPtr)pBuffer);
+        }
+        
         // BinaryReader
         public static string ReadString(this BinaryReader br, Encoding encoding, int count) => encoding.GetString(br.ReadBytes(count));
         public static string ReadCString(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => br.ReadChar()).TakeWhile(c => c != 0));
         public static string ReadCStringA(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)br.ReadByte()).TakeWhile(c => c != 0));
         public static string ReadCStringW(this BinaryReader br) => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)br.ReadInt16()).TakeWhile(c => c != 0));
-        public static unsafe T ReadStruct<T>(this BinaryReader br)
-        {
-            fixed (byte* pBuffer = br.ReadBytes(Marshal.SizeOf<T>()))
-                return Marshal.PtrToStructure<T>((IntPtr)pBuffer);
-        }
+        public static unsafe T ReadStruct<T>(this BinaryReader br) => br.ReadBytes(Marshal.SizeOf<T>()).ToStruct<T>();
         public static List<T> ReadMultiple<T>(this BinaryReader br, int count, Func<int, T> func) => Enumerable.Range(0, count).Select(func).ToList();
         public static List<NW4CSection> ReadSections(this BinaryReader br)
         {

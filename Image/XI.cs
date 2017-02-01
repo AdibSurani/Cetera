@@ -16,7 +16,7 @@ namespace Cetera
             RGBA8888, RGBA4444,
             RGBA5551, RGB888, RGB565,
             LA88 = 11, LA44, L8, HL88, A8,
-            L4 = 26, A4, ETC1, ETC1_A4
+            L4 = 26, A4, ETC1, ETC1A4
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -26,15 +26,15 @@ namespace Cetera
             public int const1; // 30 30 00 00
             public short const2; // 30 00
             public Format imageFormat;
-            public byte const3; // 01
+            public ImageCommon.Swizzle swizzle; // 01
             public byte combineFormat;
             public byte bitDepth;
             public short bytesPerTile;
             public short width;
             public short height;
-            public int const4; // 30 00 00 00
-            public int const5; // 30 00 01 00
-            public int tableDataOffset; // always 0x48
+            public int const3; // 30 00 00 00
+            public int const4; // 30 00 01 00
+            public int tableDataOffset; // const5 = always 0x48
             public int const6; // 03 00 00 00
             public int const7; // 00 00 00 00
             public int const8; // 00 00 00 00
@@ -68,8 +68,8 @@ namespace Cetera
                         ms.Write(buf2, index * header.bytesPerTile, header.bytesPerTile);
                     }
                 }
-                var colors = ImageCommon.GetColorsFromTexture(ms.ToArray(), (ImageCommon.Format)Enum.Parse(typeof(ImageCommon.Format), header.imageFormat.ToString()));
-                return ImageCommon.Load(colors, header.width, header.height, ImageCommon.Swizzle.XiSwizzle, false);
+                var colors = ImageCommon.GetColorsFromTexture(ms.ToArray(), header.imageFormat);
+                return ImageCommon.Load(colors, header.width, header.height, header.swizzle, false);
             }
         }
     }

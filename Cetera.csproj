@@ -51,9 +51,8 @@
     <Compile Include="Font\BCFNT.cs" />
     <Compile Include="Compression\CriWareCompression.cs" />
     <Compile Include="Font\XF.cs" />
-    <Compile Include="Image\BCLIM.cs" />
+    <Compile Include="Image\BXLIM.cs" />
     <Compile Include="BCLYT.cs" />
-    <Compile Include="Image\BFLIM.cs" />
     <Compile Include="Common.cs" />
     <Compile Include="Archive\DARC.cs" />
     <Compile Include="Image\ImageCommon.cs" />

@@ -115,11 +115,11 @@ namespace Cetera
         {
             attr.SetColorMatrix(new ColorMatrix(new[]
             {
-                new[] { 0, 0, 0, 0, 0f },
-                new[] { 0, 0, 0, 0, 0f },
-                new[] { 0, 0, 0, 0, 0f },
-                new[] { 0, 0, 0, 1, 0f },
-                new[] { color.R / 255f, color.G / 255f, color.B / 255f, 0, 1 }
+                new[] { color.R / 255f, 0, 0, 0, 0 },
+                new[] { 0, color.G / 255f, 0, 0, 0 },
+                new[] { 0, 0, color.B / 255f, 0, 0 },
+                new[] { 0, 0, 0, 1f, 0 },
+                new[] { 0, 0, 0, 0, 1f }
             }));
         }
 
@@ -143,18 +143,10 @@ namespace Cetera
             g.DrawImage(bmp,
                 new[] { new PointF(x + widthInfo.left * scaleX, y),
                     new PointF(x + (widthInfo.left + widthInfo.glyph_width) * scaleX, y),
-                    new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY)},
+                    new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY) },
                 new RectangleF(xOffset + 1, yOffset + 1, widthInfo.glyph_width, tglp.cell_height),
                 GraphicsUnit.Pixel,
                 attr);
-        }
-
-        public static BCFNT FromGZipStream(Stream stream)
-        {
-            var ms = new MemoryStream();
-            new GZipStream(stream, CompressionMode.Decompress).CopyTo(ms);
-            ms.Position = 0;
-            return new BCFNT(ms);
         }
 
         public BCFNT(Stream input)
@@ -173,38 +165,8 @@ namespace Cetera
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height * tglp.num_sheets;
                 var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                bmp = new Bitmap(width, height);
-                var data = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-                unsafe
-                {
-                    var ptr = (int*)data.Scan0;
-                    for (int i = 0; i < width * height; i++)
-                    {
-                        int x = (i / 64 % (width / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                        int y = (i / 64 / (width / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                        int a;
-                        if (tglp.sheet_image_format == 8) // A8
-                        {
-                            a = bytes[i];
-                            ptr[width * y + x] = a << 24;
-                        }
-                        else if (tglp.sheet_image_format == 11) // A4
-                        {
-                            a = (bytes[i / 2] >> (i % 2 * 4)) % 16 * 17;
-                            ptr[width * y + x] = a << 24;
-                        }
-                        else if (tglp.sheet_image_format == 9) // LA4
-                        {
-                            a = bytes[i] % 16 * 17;
-                            int l = bytes[i] / 16 * 17;
-                            ptr[width * y + x] = Color.FromArgb(a, l, l, l).ToArgb();
-                        }
-                        else
-                            throw new NotSupportedException("Only supports A4 and A8 for now");
-                        //ptr[width * y + x] = a << 24;
-                    }
-                }
-                bmp.UnlockBits(data);
+                var colors = ImageCommon.GetColorsFromTexture(bytes, tglp.sheet_image_format);
+                bmp = ImageCommon.Load(colors, width, height, ImageCommon.Swizzle.Default, true);
 
                 // read CWDH
                 for (int offset = finf.cwdh_offset; offset != 0; )
