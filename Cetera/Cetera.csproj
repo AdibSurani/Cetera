@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Cetera</RootNamespace>
     <AssemblyName>Cetera</AssemblyName>
@@ -34,6 +34,9 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -61,14 +64,7 @@
     <Compile Include="IOExtensions.cs" />
     <Compile Include="CodeBin\OnionFS.cs" />
     <Compile Include="Image\RgEtc1.cs" />
-    <Compile Include="TestAppForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="TestAppForm.Designer.cs">
-      <DependentUpon>TestAppForm.cs</DependentUpon>
-    </Compile>
     <Compile Include="Text\MSBT.cs" />
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -79,9 +75,6 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <EmbeddedResource Include="TestAppForm.resx">
-      <DependentUpon>TestAppForm.cs</DependentUpon>
-    </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

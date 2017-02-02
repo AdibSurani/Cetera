@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class OnionFS
+    public class OnionFS
     {
         public unsafe static string DoStuff(byte[] codeBin)
         {

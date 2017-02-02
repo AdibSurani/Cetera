@@ -4,13 +4,13 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Cetera;
 
-namespace Cetera
+namespace CeteraTestApp
 {
     public partial class TestAppForm : Form
     {
@@ -29,7 +29,7 @@ namespace Cetera
                     label1.Text = OnionFS.DoStuff(File.ReadAllBytes(path));
                 }
 
-                switch(Path.GetExtension(path))
+                switch (Path.GetExtension(path))
                 {
                     case ".bcfnt":
                         //BackgroundImage = new BCFNT(File.OpenRead(path)).bmp;

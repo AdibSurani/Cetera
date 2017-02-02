@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class XF
+    public sealed class XF
     {
         public Bitmap bmp;
         public string txt;

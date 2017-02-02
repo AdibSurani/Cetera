@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class ImageCommon
+    public class ImageCommon
     {
         static int NextPowerOf2(int n) => 2 << (int)Math.Log(n - 1, 2);
 

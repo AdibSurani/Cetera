@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class BCFNT
+    public class BCFNT
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         [DebuggerDisplay("[{left}, {glyph_width}, {char_width}]")]

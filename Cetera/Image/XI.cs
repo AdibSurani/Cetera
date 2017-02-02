@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    sealed class XI
+    public sealed class XI
     {
         public enum Format : byte
         {

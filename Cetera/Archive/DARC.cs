@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class DARC : List<DARC.Item>
+    public class DARC : List<DARC.Item>
     {
         [DebuggerDisplay("{Path}")]
         public class Item

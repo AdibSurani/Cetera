@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class MSBT : List<MSBT.Item>
+    public class MSBT : List<MSBT.Item>
     {
         [DebuggerDisplay("{Label,nq}: {Text,nq}")]
         public class Item

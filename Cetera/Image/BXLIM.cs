@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Cetera
 {
-    sealed class BXLIM
+    public sealed class BXLIM
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct BCLIMImageHeader
