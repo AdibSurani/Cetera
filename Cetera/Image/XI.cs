@@ -6,8 +6,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.Compression;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Image
 {
     public sealed class XI
     {
@@ -26,7 +28,7 @@ namespace Cetera
             public int const1; // 30 30 00 00
             public short const2; // 30 00
             public Format imageFormat;
-            public ImageCommon.Swizzle swizzle; // always 01?
+            public Common.Swizzle swizzle; // always 01?
             public byte combineFormat;
             public byte bitDepth;
             public short bytesPerTile;
@@ -49,12 +51,12 @@ namespace Cetera
 
         public Bitmap Image { get; set; }
         public Format ImageFormat { get; set; }
-        public ImageCommon.Swizzle Swizzle { get; set; }
+        public Common.Swizzle Swizzle { get; set; }
         public int CombineFormat { get; set; }
 
         public XI(Stream input)
         {
-            using (var br = new BinaryReader(input))
+            using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
                 ImageFormat = header.imageFormat;
@@ -64,9 +66,9 @@ namespace Cetera
                 if (CombineFormat != 1)
                     throw new Exception($"Unknown combine format {header.combineFormat}");
 
-                var buf1 = CriWareCompression.GetDecompressedBytes(input);
+                var buf1 = CriWare.GetDecompressedBytes(input);
                 while (input.Position % 4 != 0) input.ReadByte();
-                var buf2 = CriWareCompression.GetDecompressedBytes(input);
+                var buf2 = CriWare.GetDecompressedBytes(input);
 
                 var ms = new MemoryStream();
                 using (var bw = new BinaryWriter(ms))
@@ -77,8 +79,8 @@ namespace Cetera
                         ms.Write(buf2, index * header.bytesPerTile, header.bytesPerTile);
                     }
                 }
-                var colors = ImageCommon.GetColorsFromTexture(ms.ToArray(), header.imageFormat);
-                Image = ImageCommon.Load(colors, header.width, header.height, header.swizzle, false);
+                var colors = Common.GetColorsFromTexture(ms.ToArray(), header.imageFormat);
+                Image = Common.Load(colors, header.width, header.height, header.swizzle, false);
             }
         }
     }

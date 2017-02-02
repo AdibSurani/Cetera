@@ -7,10 +7,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Image
 {
-    public class ImageCommon
+    public class Common
     {
         static int NextPowerOf2(int n) => 2 << (int)Math.Log(n - 1, 2);
 
@@ -33,25 +34,25 @@ namespace Cetera
         public static IEnumerable<Color> GetColorsFromTexture<T>(byte[] tex, T originalFormat) where T : struct, IConvertible
         {
             var format = (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
-            using (var br = new BinaryReader(new MemoryStream(tex)))
+            using (var br = new BinaryReaderX(new MemoryStream(tex)))
             {
-                int? nibble = null;
-                Func<int> ReadNibble = () =>
-                {
-                    int val;
-                    if (nibble == null)
-                    {
-                        val = br.ReadByte();
-                        nibble = val / 16;
-                        val %= 16;
-                    }
-                    else
-                    {
-                        val = nibble.Value;
-                        nibble = null;
-                    }
-                    return val;
-                };
+                //int? nibble = null;
+                //Func<int> ReadNibble = () =>
+                //{
+                //    int val;
+                //    if (nibble == null)
+                //    {
+                //        val = br.ReadByte();
+                //        nibble = val / 16;
+                //        val %= 16;
+                //    }
+                //    else
+                //    {
+                //        val = nibble.Value;
+                //        nibble = null;
+                //    }
+                //    return val;
+                //};
 
                 var etc1colors = new Queue<Color>();
 
@@ -67,8 +68,8 @@ namespace Cetera
                             a = br.ReadByte();
                             break;
                         case Format.LA44:
-                            a = ReadNibble() * 17;
-                            b = g = r = ReadNibble() * 17;
+                            a = br.ReadNibble() * 17;
+                            b = g = r = br.ReadNibble() * 17;
                             break;
                         case Format.LA88:
                             a = br.ReadByte();
@@ -97,10 +98,10 @@ namespace Cetera
                             r = (s2 >> 11) % 32 * 33 / 4;
                             break;
                         case Format.RGBA4444:
-                            a = ReadNibble() * 17;
-                            b = ReadNibble() * 17;
-                            g = ReadNibble() * 17;
-                            r = ReadNibble() * 17;
+                            a = br.ReadNibble() * 17;
+                            b = br.ReadNibble() * 17;
+                            g = br.ReadNibble() * 17;
+                            r = br.ReadNibble() * 17;
                             break;
                         case Format.RGBA8888:
                             a = br.ReadByte();
@@ -118,10 +119,10 @@ namespace Cetera
                             yield return etc1colors.Dequeue();
                             continue;
                         case Format.L4:
-                            b = g = r = ReadNibble() * 17;
+                            b = g = r = br.ReadNibble() * 17;
                             break;
                         case Format.A4:
-                            a = ReadNibble() * 17;
+                            a = br.ReadNibble() * 17;
                             break;
                         default:
                             throw new NotSupportedException($"Unknown image format {format}");
@@ -131,51 +132,53 @@ namespace Cetera
             }
         }
 
-        public unsafe static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        public static IEnumerable<Point> GetPointSequence(int width, int height, Swizzle swizzle, bool padToPowerOf2)
         {
             int stride = (int)swizzle < 4 ? width : height;
             if (padToPowerOf2) stride = NextPowerOf2(stride);
             if (stride < 8) stride = 8;
 
+            for (int i = 0; ; i++)
+            {
+                int x_out = (i / 64 % (stride / 8)) * 8;
+                int y_out = (i / 64 / (stride / 8)) * 8;
+                int x_in = (i / 4 & 4) | (i / 2 & 2) | (i & 1);
+                int y_in = (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
+
+                switch (swizzle)
+                {
+                    case Swizzle.Default:
+                        yield return new Point(x_out + x_in, y_out + y_in);
+                        break;
+                    case Swizzle.TransposeTile:
+                        yield return new Point(x_out + y_in, y_out + x_in);
+                        break;
+                    case Swizzle.Rotate90:
+                        yield return new Point(y_out + y_in, stride - 1 - (x_out + x_in));
+                        break;
+                    case Swizzle.Transpose:
+                        yield return new Point(y_out + y_in, x_out + x_in);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Unknown swizzle format {swizzle}");
+                }
+            }
+        }
+
+        public unsafe static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        {
+            var points = GetPointSequence(width, height, swizzle, padToPowerOf2);
             var bmp = new Bitmap(width, height);
             var data = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
             unsafe
             {
-                int i = 0;
                 var ptr = (int*)data.Scan0;
-                foreach (var color in colors)
+                foreach (var pair in colors.Zip(points, Tuple.Create))
                 {
-                    int x_out = (i / 64 % (stride / 8)) * 8;
-                    int y_out = (i / 64 / (stride / 8)) * 8;
-                    int x_in = (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                    int y_in = (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                    i++;
-
-                    int x, y;
-                    switch (swizzle)
-                    {
-                        case Swizzle.Default:
-                            x = x_out + x_in;
-                            y = y_out + y_in;
-                            break;
-                        case Swizzle.TransposeTile:
-                            x = x_out + y_in;
-                            y = y_out + x_in;
-                            break;
-                        case Swizzle.Rotate90:
-                            x = y_out + y_in;
-                            y = stride - 1 - (x_out + x_in);
-                            break;
-                        case Swizzle.Transpose:
-                            x = y_out + y_in;
-                            y = x_out + x_in;
-                            break;
-                        default:
-                            throw new NotSupportedException($"Unknown swizzle format {swizzle}");
-                    }
+                    int x = pair.Item2.X, y = pair.Item2.Y;
                     if (0 <= x && x < width && 0 <= y && y < height)
                     {
-                        ptr[data.Stride * y / 4 + x] = color.ToArgb();
+                        ptr[data.Stride * y / 4 + x] = pair.Item1.ToArgb();
                     }
                 }
             }

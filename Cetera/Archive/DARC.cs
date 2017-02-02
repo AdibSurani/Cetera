@@ -6,8 +6,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Archive
 {
     public class DARC : List<DARC.Item>
     {
@@ -45,7 +46,7 @@ namespace Cetera
 
         public DARC(Stream input)
         {
-            using (var br = new BinaryReader(input, Encoding.Unicode))
+            using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
 
@@ -65,7 +66,7 @@ namespace Cetera
                 {
                     var entry = lst[i];
                     br.BaseStream.Position = basePos + entry.FilenameOffset;
-                    var arcPath = br.ReadCString();
+                    var arcPath = br.ReadCStringW();
                     if (entry.IsFolder)
                     {
                         arcPath += '/';

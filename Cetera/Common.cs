@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    enum ByteOrder : ushort
+    public enum ByteOrder : ushort
     {
         LittleEndian = 0xFEFF,
         BigEndian = 0xFFFE
@@ -20,7 +20,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct String4
+    public struct String4
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
         byte[] bytes;
@@ -29,7 +29,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct String8
+    public struct String8
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
         byte[] bytes;
@@ -38,7 +38,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct String16
+    public struct String16
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
         byte[] bytes;
@@ -47,7 +47,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct String20
+    public struct String20
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
         byte[] bytes;
@@ -56,7 +56,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct NW4CHeader
+    public struct NW4CHeader
     {
         public String4 magic;
         public ByteOrder byte_order;
@@ -67,7 +67,7 @@ namespace Cetera
     };
 
     [DebuggerDisplay("{Magic,nq}: {Data.Length} bytes")]
-    class NW4CSection
+    public class NW4CSection
     {
         public string Magic { get; }
         public byte[] Data { get; }
@@ -80,7 +80,13 @@ namespace Cetera
         }
     }
 
-    
+    [DebuggerDisplay("{x}, {y}")]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct Vector2D { public float x, y; }
+
+    [DebuggerDisplay("{x}, {y}, {z}")]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct Vector3D { public float x, y, z; }
 
     class Common
     {

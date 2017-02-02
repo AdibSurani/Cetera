@@ -1,9 +1,11 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Image
 {
     public sealed class BXLIM
     {
@@ -13,7 +15,7 @@ namespace Cetera
             public short width;
             public short height;
             public Format format;
-            public ImageCommon.Swizzle swizzle;
+            public Common.Swizzle swizzle;
             public short unknown;
         }
 
@@ -24,7 +26,7 @@ namespace Cetera
             public short height;
             public short unknown;
             public Format format;
-            public ImageCommon.Swizzle swizzle;
+            public Common.Swizzle swizzle;
         }
 
         public enum Format : byte
@@ -37,35 +39,41 @@ namespace Cetera
 
         public Bitmap Image { get; set; }
         public Format ImageFormat { get; set; }
-        public ImageCommon.Swizzle Swizzle { get; set; }
+        public Common.Swizzle Swizzle { get; set; }
         public short UnknownShort { get; set; }
 
         public BXLIM(Stream input)
         {
-            using (var br = new BinaryReader(input))
+            using (var br = new BinaryReaderX(input))
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
+                string magic;
+                var imagData = br.ReadSections(out magic).Single().Data;
                 int width, height;
-                if (br.PeekChar() == 'C')
+                switch (magic)
                 {
-                    var header = br.ReadSections().Single().Data.ToStruct<BCLIMImageHeader>();
-                    width = header.width;
-                    height = header.height;
-                    ImageFormat = header.format;
-                    Swizzle = header.swizzle;
-                    UnknownShort = header.unknown;
+                    case "CLIM":
+                        var bclim = imagData.ToStruct<BCLIMImageHeader>();
+                        width = bclim.width;
+                        height = bclim.height;
+                        ImageFormat = bclim.format;
+                        Swizzle = bclim.swizzle;
+                        UnknownShort = bclim.unknown;
+                        break;
+                    case "FLIM":
+                        var bflim = imagData.ToStruct<BFLIMImageHeader>();
+                        width = bflim.width;
+                        height = bflim.height;
+                        ImageFormat = bflim.format;
+                        Swizzle = bflim.swizzle;
+                        UnknownShort = bflim.unknown;
+                        break;
+                    default:
+                        throw new NotSupportedException($"Unknown image format {magic}");
                 }
-                else
-                {
-                    var header = br.ReadSections().Single().Data.ToStruct<BFLIMImageHeader>();
-                    width = header.width;
-                    height = header.height;
-                    ImageFormat = header.format;
-                    Swizzle = header.swizzle;
-                    UnknownShort = header.unknown;
-                }
-                var colors = ImageCommon.GetColorsFromTexture(tex, ImageFormat);
-                Image = ImageCommon.Load(colors, width, height, Swizzle, true);
+
+                var colors = Common.GetColorsFromTexture(tex, ImageFormat);
+                Image = Common.Load(colors, width, height, Swizzle, true);
             }
         }
     }

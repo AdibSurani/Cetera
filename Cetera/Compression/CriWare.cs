@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace Cetera
+namespace Cetera.Compression
 {
-    class CriWareCompression
+    public class CriWare
     {
         enum Method
         {

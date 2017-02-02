@@ -9,8 +9,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.Compression;
+using Cetera.Image;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Font
 {
     public sealed class XF
     {
@@ -53,9 +56,9 @@ namespace Cetera
                 br.ReadBytes(64);
                 bmp = new XI(new MemoryStream(br.ReadBytes(0x3396C))).Image; // temporary hack -- only works with nrm_main.xf for now
                 br.ReadBytes(0x28); // temporary hack -- should be the header
-                var buf1 = CriWareCompression.GetDecompressedBytes(br.BaseStream);
-                var buf2 = CriWareCompression.GetDecompressedBytes(br.BaseStream);
-                var buf3 = CriWareCompression.GetDecompressedBytes(br.BaseStream);
+                var buf1 = CriWare.GetDecompressedBytes(br.BaseStream);
+                var buf2 = CriWare.GetDecompressedBytes(br.BaseStream);
+                var buf3 = CriWare.GetDecompressedBytes(br.BaseStream);
 
                 lstCharSizeInfo = Enumerable.Range(0, buf1.Length / 4).Select(i => buf1.Skip(4 * i).Take(4).ToArray().ToStruct<CharSizeInfo>()).ToList();
                 dicGlyphLarge = Enumerable.Range(0, buf2.Length / 8).Select(i => buf2.Skip(8 * i).Take(8).ToArray().ToStruct<CharacterMap>()).ToDictionary(x => x.code_point);

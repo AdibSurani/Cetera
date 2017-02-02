@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cetera.IO;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -10,18 +11,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Layout
 {
-    class BCLYT
+    public class BCLYT
     {
-        [DebuggerDisplay("{x}, {y}")]
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Vector2D { public float x, y; }
-
-        [DebuggerDisplay("{x}, {y}, {z}")]
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Vector3D { public float x, y, z; }
-
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct Layout
         {
@@ -73,13 +66,13 @@ namespace Cetera
 
         public BCLYT(Stream input)
         {
-            using (var sr = new BinaryReader(input))
+            using (var sr = new BinaryReaderX(input))
             {
                 var sections = sr.ReadSections();
 
                 foreach (var sec in sections)
                 {
-                    using (var br = new BinaryReader(new MemoryStream(sec.Data)))
+                    using (var br = new BinaryReaderX(new MemoryStream(sec.Data)))
                     {
                         switch (sec.Magic)
                         {

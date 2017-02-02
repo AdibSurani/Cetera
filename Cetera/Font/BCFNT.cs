@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cetera.IO;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -10,7 +11,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Font
 {
     public class BCFNT
     {
@@ -123,11 +124,6 @@ namespace Cetera
             }));
         }
 
-        public void Draw(char c, Graphics g, float x, float y, float scale)
-        {
-            Draw(c, g, x, y, scale, scale);
-        }
-
         public void Draw(char c, Graphics g, float x, float y, float scaleX, float scaleY)
         {
             var index = GetIndex(c);
@@ -151,7 +147,7 @@ namespace Cetera
 
         public BCFNT(Stream input)
         {
-            using (var br = new BinaryReader(input, Encoding.Unicode))
+            using (var br = new BinaryReaderX(input))
             {
                 var cfnt = br.ReadStruct<CFNT>();
                 finf = br.ReadStruct<FINF>();
@@ -165,8 +161,8 @@ namespace Cetera
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height * tglp.num_sheets;
                 var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                var colors = ImageCommon.GetColorsFromTexture(bytes, tglp.sheet_image_format);
-                bmp = ImageCommon.Load(colors, width, height, ImageCommon.Swizzle.Default, true);
+                var colors = Image.Common.GetColorsFromTexture(bytes, tglp.sheet_image_format);
+                bmp = Image.Common.Load(colors, width, height, Image.Common.Swizzle.Default, true);
 
                 // read CWDH
                 for (int offset = finf.cwdh_offset; offset != 0; )

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cetera.IO;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,7 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Text
 {
     public class MSBT : List<MSBT.Item>
     {
@@ -53,7 +54,7 @@ namespace Cetera
 
         public MSBT(Stream input)
         {
-            using (var br = new BinaryReader(input))
+            using (var br = new BinaryReaderX(input))
             {
                 header = br.ReadStruct<Header>();
                 if (header.magic != "MsgStdBn") throw new Exception("Not MSBT");

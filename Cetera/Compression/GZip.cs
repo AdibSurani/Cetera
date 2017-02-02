@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Compression
 {
-    class GZip
+    public class GZip
     {
         public static byte[] Compress(byte[] bytes)
         {
@@ -28,6 +28,22 @@ namespace Cetera
                 gz.CopyTo(ms);
             }
             return ms.ToArray();
+        }
+
+        public static Stream OpenRead(string path)
+        {
+            var ms = new MemoryStream();
+            using (var gz = new GZipStream(File.OpenRead(path), CompressionMode.Decompress))
+            {
+                gz.CopyTo(ms);
+            }
+            ms.Position = 0;
+            return ms;
+        }
+
+        public static void WriteAllBytes(string path, byte[] bytes)
+        {
+            throw new NotImplementedException();
         }
     }
 }

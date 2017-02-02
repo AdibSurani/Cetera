@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace Cetera
+namespace Cetera.Image
 {
     // Fast, high quality ETC1 block packer/unpacker - Rich Geldreich <richgel99@gmail.com>
     // rg_etc1 is written in C; this RgEtc1 class is a C# wrapper to use it with 3DS games
@@ -28,8 +28,8 @@ namespace Cetera
         }
 
         // Quality setting = the higher the quality, the slower.
-        // To pack large textures, it is highly recommended to call Pack() in parallel, on
-        // different blocks, from multiple threads (particularly when using HighQuality).
+        // To pack large textures, it is highly recommended to call Pack() in parallel,
+        // on different blocks, from multiple threads (particularly when using HighQuality).
         public enum Quality
         {
             LowQuality,
