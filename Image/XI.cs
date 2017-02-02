@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class XI
+    sealed class XI
     {
         public enum Format : byte
         {
@@ -20,13 +20,13 @@ namespace Cetera
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Header
+        public struct Header
         {
             public int magic; // IMGC
             public int const1; // 30 30 00 00
             public short const2; // 30 00
             public Format imageFormat;
-            public ImageCommon.Swizzle swizzle; // 01
+            public ImageCommon.Swizzle swizzle; // always 01?
             public byte combineFormat;
             public byte bitDepth;
             public short bytesPerTile;
@@ -34,7 +34,7 @@ namespace Cetera
             public short height;
             public int const3; // 30 00 00 00
             public int const4; // 30 00 01 00
-            public int tableDataOffset; // const5 = always 0x48
+            public int const5; // 48 00 00 00 = tableDataOffset
             public int const6; // 03 00 00 00
             public int const7; // 00 00 00 00
             public int const8; // 00 00 00 00
@@ -47,17 +47,26 @@ namespace Cetera
             public int const12; // 00 00 00 00
         }
 
-        public static Bitmap Load(Stream input)
+        public Bitmap Image { get; set; }
+        public Format ImageFormat { get; set; }
+        public ImageCommon.Swizzle Swizzle { get; set; }
+        public int CombineFormat { get; set; }
+
+        public XI(Stream input)
         {
             using (var br = new BinaryReader(input))
             {
                 var header = br.ReadStruct<Header>();
+                ImageFormat = header.imageFormat;
+                Swizzle = header.swizzle;
+                CombineFormat = header.combineFormat;
+
+                if (CombineFormat != 1)
+                    throw new Exception($"Unknown combine format {header.combineFormat}");
+
                 var buf1 = CriWareCompression.GetDecompressedBytes(input);
                 while (input.Position % 4 != 0) input.ReadByte();
                 var buf2 = CriWareCompression.GetDecompressedBytes(input);
-
-                if (header.combineFormat != 1)
-                    throw new Exception($"Unknown combine format {header.combineFormat}");
 
                 var ms = new MemoryStream();
                 using (var bw = new BinaryWriter(ms))
@@ -69,7 +78,7 @@ namespace Cetera
                     }
                 }
                 var colors = ImageCommon.GetColorsFromTexture(ms.ToArray(), header.imageFormat);
-                return ImageCommon.Load(colors, header.width, header.height, header.swizzle, false);
+                Image = ImageCommon.Load(colors, header.width, header.height, header.swizzle, false);
             }
         }
     }

@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
+﻿using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Cetera
 {
-    class BXLIM
+    sealed class BXLIM
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct BCLIMImageHeader
@@ -39,23 +35,37 @@ namespace Cetera
             ETC1, ETC1A4, L4, A4
         }
 
-        public static Bitmap Load(Stream input)
+        public Bitmap Image { get; set; }
+        public Format ImageFormat { get; set; }
+        public ImageCommon.Swizzle Swizzle { get; set; }
+        public short UnknownShort { get; set; }
+
+        public BXLIM(Stream input)
         {
             using (var br = new BinaryReader(input))
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
+                int width, height;
                 if (br.PeekChar() == 'C')
                 {
                     var header = br.ReadSections().Single().Data.ToStruct<BCLIMImageHeader>();
-                    var colors = ImageCommon.GetColorsFromTexture(tex, header.format);
-                    return ImageCommon.Load(colors, header.width, header.height, header.swizzle, true);
+                    width = header.width;
+                    height = header.height;
+                    ImageFormat = header.format;
+                    Swizzle = header.swizzle;
+                    UnknownShort = header.unknown;
                 }
                 else
                 {
                     var header = br.ReadSections().Single().Data.ToStruct<BFLIMImageHeader>();
-                    var colors = ImageCommon.GetColorsFromTexture(tex, header.format);
-                    return ImageCommon.Load(colors, header.width, header.height, header.swizzle, true);
+                    width = header.width;
+                    height = header.height;
+                    ImageFormat = header.format;
+                    Swizzle = header.swizzle;
+                    UnknownShort = header.unknown;
                 }
+                var colors = ImageCommon.GetColorsFromTexture(tex, ImageFormat);
+                Image = ImageCommon.Load(colors, width, height, Swizzle, true);
             }
         }
     }

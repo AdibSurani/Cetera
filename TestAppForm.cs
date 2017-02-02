@@ -37,11 +37,11 @@ namespace Cetera
                         BackgroundImage = fntz.bmp;
                         break;
                     case ".xi":
-                        BackgroundImage = XI.Load(File.OpenRead(path));
+                        BackgroundImage = new XI(File.OpenRead(path)).Image;
                         break;
                     case ".bclim":
                     case ".bflim":
-                        BackgroundImage = BXLIM.Load(File.OpenRead(path));
+                        BackgroundImage = new BXLIM(File.OpenRead(path)).Image;
                         break;
                     case ".msbt":
                         var msbt = new MSBT(File.OpenRead(path));
@@ -51,7 +51,7 @@ namespace Cetera
                         var arc = new DARC(File.OpenRead(path));
                         label1.Text = string.Join("\r\n", arc.Select(i => $"{i.Path}: {i.Data.Length} bytes"));
                         var ent = arc.FirstOrDefault(i => i.Path.EndsWith("lim"));
-                        if (ent != null) BackgroundImage = BXLIM.Load(new MemoryStream(ent.Data));
+                        if (ent != null) BackgroundImage = new BXLIM(new MemoryStream(ent.Data)).Image;
                         break;
                 }
                 //System.Diagnostics.Debug.WriteLine(label1.Text);

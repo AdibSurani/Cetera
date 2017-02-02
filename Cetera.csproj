@@ -48,17 +48,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Compression\GZip.cs" />
     <Compile Include="Font\BCFNT.cs" />
     <Compile Include="Compression\CriWareCompression.cs" />
     <Compile Include="Font\XF.cs" />
     <Compile Include="Image\BXLIM.cs" />
-    <Compile Include="BCLYT.cs" />
+    <Compile Include="Layout\BCLYT.cs" />
     <Compile Include="Common.cs" />
     <Compile Include="Archive\DARC.cs" />
     <Compile Include="Image\ImageCommon.cs" />
     <Compile Include="Image\XI.cs" />
     <Compile Include="IOExtensions.cs" />
-    <Compile Include="OnionFS.cs" />
+    <Compile Include="CodeBin\OnionFS.cs" />
     <Compile Include="Image\RgEtc1.cs" />
     <Compile Include="TestAppForm.cs">
       <SubType>Form</SubType>
@@ -66,7 +67,7 @@
     <Compile Include="TestAppForm.Designer.cs">
       <DependentUpon>TestAppForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="MSBT.cs" />
+    <Compile Include="Text\MSBT.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">

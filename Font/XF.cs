@@ -51,7 +51,7 @@ namespace Cetera
             using (var br = new BinaryReader(input))
             {
                 br.ReadBytes(64);
-                bmp = XI.Load(new MemoryStream(br.ReadBytes(0x3396C))); // temporary hack -- only works with nrm_main.xf for now
+                bmp = new XI(new MemoryStream(br.ReadBytes(0x3396C))).Image; // temporary hack -- only works with nrm_main.xf for now
                 br.ReadBytes(0x28); // temporary hack -- should be the header
                 var buf1 = CriWareCompression.GetDecompressedBytes(br.BaseStream);
                 var buf2 = CriWareCompression.GetDecompressedBytes(br.BaseStream);

@@ -12,7 +12,7 @@ namespace Cetera
 {
     class ImageCommon
     {
-        static int npo2(int n) => 2 << (int)Math.Log(n - 1, 2); // next power of 2
+        static int NextPowerOf2(int n) => 2 << (int)Math.Log(n - 1, 2);
 
         public enum Format : byte
         {
@@ -134,7 +134,7 @@ namespace Cetera
         public unsafe static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
         {
             int stride = (int)swizzle < 4 ? width : height;
-            if (padToPowerOf2) stride = npo2(stride);
+            if (padToPowerOf2) stride = NextPowerOf2(stride);
             if (stride < 8) stride = 8;
 
             var bmp = new Bitmap(width, height);
@@ -189,7 +189,7 @@ namespace Cetera
             throw new NotImplementedException("Need to make changes to some swizzle stuff");
             var ms = new MemoryStream();
             int width = bmp.Width, height = bmp.Height;
-            int stride = Math.Max(8, npo2(height));
+            int stride = Math.Max(8, NextPowerOf2(height));
 
             var etc1colors = new Queue<Color>();
 
