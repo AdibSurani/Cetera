@@ -34,7 +34,6 @@ namespace CeteraTestApp
             switch (Path.GetExtension(path))
             {
                 case ".bcfnt":
-                    //BackgroundImage = new BCFNT(File.OpenRead(path)).bmp;
                     var fntz = new BCFNT(File.OpenRead(path));
                     BackgroundImage = fntz.bmp;
                     break;
@@ -147,11 +146,15 @@ namespace CeteraTestApp
             DragEnter += (s, e) => e.Effect = DragDropEffects.Copy;
             DragDrop += (s, e) => TestFile(((string[])e.Data.GetData(DataFormats.FileDrop)).First());
 
+            //var fnt = new BCFNT(File.OpenRead(@"C:\Users\Adib\Desktop\pikachu.bcfnt"));
+            //int k = 1;
+
             //TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
             //TestFile(@"C:\dqmrs3\Images&Menus\Layout\Menu\Upper_menu.arc\extracted\timg\txt_item.bclim");
+            //TestFile(@"C:\Users\Adib\Desktop\flyer.bclim");
             //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
             //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
-            //TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
+            TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
             //TestXFFont(@"C:\Users\Adib\Downloads\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\Users\Adib\Desktop\ms_normal.bclyt");
             //TestDaigasso();
@@ -169,6 +172,9 @@ namespace CeteraTestApp
 
             //    BackgroundImage = bmp;
             //}
+
+            var settings = new Settings { Format = Format.ETC1A4 };
+            BackgroundImage = Common.Load(Common.Save((Bitmap)BackgroundImage, settings), settings);
 
             return;
 

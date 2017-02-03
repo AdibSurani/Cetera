@@ -127,7 +127,7 @@ namespace Cetera.Image
                             yield return etc1decoder.Get(() =>
                             {
                                 var alpha = (format == Format.ETC1A4) ? br.ReadUInt64() : ulong.MaxValue;
-                                return new Etc1.PixelData { Alpha = alpha, Color = br.ReadBytes(8) };
+                                return new Etc1.PixelData { Alpha = alpha, Color = br.ReadUInt64() };
                             });
                             continue;
                         case Format.L4:
