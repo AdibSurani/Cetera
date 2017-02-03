@@ -10,6 +10,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.Image;
 
 namespace Cetera.Font
 {
@@ -161,8 +162,10 @@ namespace Cetera.Font
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height * tglp.num_sheets;
                 var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                var colors = Image.Common.GetColorsFromTexture(bytes, tglp.sheet_image_format);
-                bmp = Image.Common.Load(colors, width, height, Image.Common.Swizzle.Default, true);
+                var settings = new Settings { Width = width, Height = height, Swizzle = Swizzle.Default };
+                settings.SetFormat(tglp.sheet_image_format);
+                //var colors = Image.Common.GetColorsFromTexture(bytes, tglp.sheet_image_format);
+                bmp = Image.Common.Load(bytes, settings);
 
                 // read CWDH
                 for (int offset = finf.cwdh_offset; offset != 0; )

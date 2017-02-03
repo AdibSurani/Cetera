@@ -11,50 +11,59 @@ using Cetera.IO;
 
 namespace Cetera.Image
 {
+    public enum Format : byte
+    {
+        RGBA8888, RGB888,
+        RGBA5551, RGB565, RGBA4444,
+        LA88, HL88, L8, A8, LA44,
+        L4, A4, ETC1, ETC1A4
+    }
+
+    public enum Swizzle : byte
+    {
+        Default,
+        TransposeTile = 1,
+        Rotate90 = 4,
+        Transpose = 8
+    }
+
+    public class Settings
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public Format Format { get; set; }
+        public Swizzle Swizzle { get; set; } = Swizzle.Default;
+        public bool PadToPowerOf2 { get; set; } = true;
+
+        public int Stride
+        {
+            get
+            {
+                int stride = (int)Swizzle < 4 ? Width : Height;
+                stride = (stride + 7) & ~7; // round up to multiple of 8
+                if (PadToPowerOf2) stride = 2 << (int)Math.Log(stride - 1, 2);
+                return stride;
+            }
+        }
+
+        /// <summary>
+        /// This is currently a hack
+        /// </summary>
+        public void SetFormat<T>(T originalFormat) where T : struct, IConvertible
+        {
+            Format = (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
+        }
+    }
+
     public class Common
     {
-        static int NextPowerOf2(int n) => 2 << (int)Math.Log(n - 1, 2);
+        public static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
 
-        public enum Format : byte
+        public static IEnumerable<Color> GetColorsFromTexture(byte[] tex, Format format)
         {
-            RGBA8888, RGB888,
-            RGBA5551, RGB565, RGBA4444,
-            LA88, HL88, L8, A8, LA44,
-            L4, A4, ETC1, ETC1A4
-        }
-
-        public enum Swizzle : byte
-        {
-            Default,
-            TransposeTile = 1,
-            Rotate90 = 4,
-            Transpose = 8
-        }
-
-        public static IEnumerable<Color> GetColorsFromTexture<T>(byte[] tex, T originalFormat) where T : struct, IConvertible
-        {
-            var format = (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
             using (var br = new BinaryReaderX(new MemoryStream(tex)))
             {
-                //int? nibble = null;
-                //Func<int> ReadNibble = () =>
-                //{
-                //    int val;
-                //    if (nibble == null)
-                //    {
-                //        val = br.ReadByte();
-                //        nibble = val / 16;
-                //        val %= 16;
-                //    }
-                //    else
-                //    {
-                //        val = nibble.Value;
-                //        nibble = null;
-                //    }
-                //    return val;
-                //};
-
-                var etc1colors = new Queue<Color>();
+                var etc1decoder = new Etc1.Decoder();
 
                 while (br.BaseStream.Position != br.BaseStream.Length)
                 {
@@ -111,12 +120,11 @@ namespace Cetera.Image
                             break;
                         case Format.ETC1:
                         case Format.ETC1A4:
-                            if (etc1colors.Count == 0)
+                            yield return etc1decoder.Get(() =>
                             {
-                                var etc1alpha = (format == Format.ETC1A4) ? br.ReadUInt64() : ulong.MaxValue;
-                                etc1colors = new Queue<Color>(RgEtc1.Unpack(br.ReadBytes(8), etc1alpha));
-                            }
-                            yield return etc1colors.Dequeue();
+                                var alpha = (format == Format.ETC1A4) ? br.ReadUInt64() : ulong.MaxValue;
+                                return new Etc1.PixelData { Alpha = alpha, Color = br.ReadBytes(8) };
+                            });
                             continue;
                         case Format.L4:
                             b = g = r = br.ReadNibble() * 17;
@@ -132,20 +140,27 @@ namespace Cetera.Image
             }
         }
 
-        public static IEnumerable<Point> GetPointSequence(int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        //public int nlpo2(int n) => 2 << (int)Math.Log(n - 1, 2);
+        static int pad(int n, bool po2)
         {
-            int stride = (int)swizzle < 4 ? width : height;
-            if (padToPowerOf2) stride = NextPowerOf2(stride);
-            if (stride < 8) stride = 8;
+            n = (n + 7) & ~7;
+            if (po2) n = 2 << (int)Math.Log(n - 1, 2);
+            return n;
+        }
 
-            for (int i = 0; ; i++)
+        static IEnumerable<Point> GetPointSequence(Settings settings)
+        {
+            int strideWidth = pad(settings.Width, settings.PadToPowerOf2);
+            int strideHeight = pad(settings.Width, settings.PadToPowerOf2);
+            int stride = (int)settings.Swizzle < 4 ? strideWidth : strideHeight;
+            for (int i = 0; i < strideWidth * strideHeight; i++)
             {
                 int x_out = (i / 64 % (stride / 8)) * 8;
                 int y_out = (i / 64 / (stride / 8)) * 8;
                 int x_in = (i / 4 & 4) | (i / 2 & 2) | (i & 1);
                 int y_in = (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
 
-                switch (swizzle)
+                switch (settings.Swizzle)
                 {
                     case Swizzle.Default:
                         yield return new Point(x_out + x_in, y_out + y_in);
@@ -160,14 +175,18 @@ namespace Cetera.Image
                         yield return new Point(y_out + y_in, x_out + x_in);
                         break;
                     default:
-                        throw new NotSupportedException($"Unknown swizzle format {swizzle}");
+                        throw new NotSupportedException($"Unknown swizzle format {settings.Swizzle}");
                 }
             }
         }
 
-        public unsafe static Bitmap Load(IEnumerable<Color> colors, int width, int height, Swizzle swizzle, bool padToPowerOf2)
+        public unsafe static Bitmap Load(byte[] tex, Settings settings)
         {
-            var points = GetPointSequence(width, height, swizzle, padToPowerOf2);
+            int width = settings.Width, height = settings.Height;
+            var colors = GetColorsFromTexture(tex, settings.Format);
+            var points = GetPointSequence(settings);
+
+            // Now we just need to merge the points with the colors
             var bmp = new Bitmap(width, height);
             var data = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
             unsafe
@@ -187,14 +206,19 @@ namespace Cetera.Image
         }
         
         // This is not yet implemented and will throw a NotImplentedException
-        public static byte[] ToTexture(Bitmap bmp, Format format, Swizzle swizzle)
+        public static byte[] Save(Bitmap bmp, Settings settings)
         {
-            throw new NotImplementedException("Need to make changes to some swizzle stuff");
+            settings.Width = bmp.Width;
+            settings.Height = bmp.Height;
+            var points = GetPointSequence(settings);
+
+            //throw new NotImplementedException("Need to make changes to some swizzle stuff");
             var ms = new MemoryStream();
             int width = bmp.Width, height = bmp.Height;
-            int stride = Math.Max(8, NextPowerOf2(height));
+            int stride = 0;
 
             var etc1colors = new Queue<Color>();
+            var etc1encoder = new Etc1.Encoder();
 
             using (var bw = new BinaryWriter(ms))
             {
@@ -213,39 +237,33 @@ namespace Cetera.Image
                     }
                 };
 
-                for (int i = 0; i < ((width + 7) & ~7) * stride; i++)
+                foreach (var point in points)
                 {
-                    int x = (i / 64 / (stride / 8)) * 8 + (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
-                    int y = (i / 64 % (stride / 8)) * 8 + (i / 4 & 4) | (i / 2 & 2) | (i & 1);
-                    if (swizzle == Swizzle.Rotate90)
-                    {
-                        y = stride - 1 - y;
-                    }
+                    int x = Clamp(point.X, 0, bmp.Width - 1);
+                    int y = Clamp(point.Y, 0, bmp.Height - 1);
 
-                    x = Math.Min(x, bmp.Width - 1);
-                    y = Math.Max(0, Math.Min(y, bmp.Height - 1));
                     var color = bmp.GetPixel(x, y);
-                    if (color.A == 0) color = default(Color);
+                    if (color.A == 0) color = default(Color); // daigasso seems to need this
 
-                    switch (format)
+                    switch (settings.Format)
                     {
                         case Format.L8:
-                            bw.Write((byte)((color.R + color.G + color.B) / 3));
+                            bw.Write(color.G);
                             break;
                         case Format.A8:
                             bw.Write(color.A);
                             break;
                         case Format.LA44:
                             WriteNibble(color.A / 16);
-                            WriteNibble((color.R + color.G + color.B) / 48);
+                            WriteNibble(color.G / 16);
                             break;
                         case Format.LA88:
                             bw.Write(color.A);
-                            bw.Write((byte)((color.R + color.G + color.B) / 3));
+                            bw.Write(color.G);
                             break;
                         case Format.HL88:
                             bw.Write(color.G);
-                            bw.Write(color.B);
+                            bw.Write(color.R);
                             break;
                         case Format.RGB565:
                             bw.Write((short)((color.R / 8 << 11) | (color.G / 4 << 5) | (color.B / 8)));
@@ -272,15 +290,11 @@ namespace Cetera.Image
                             break;
                         case Format.ETC1:
                         case Format.ETC1A4:
-                            etc1colors.Enqueue(color);
-                            if (etc1colors.Count != 16) continue;
-
-                            ulong alpha;
-                            var packed = RgEtc1.Pack(etc1colors.ToList(), out alpha);
-                            if (format == Format.ETC1A4) bw.Write(alpha);
-                            bw.Write(packed);
-                            etc1colors.Clear();
-
+                            etc1encoder.Set(color, data =>
+                            {
+                                if (settings.Format == Format.ETC1A4) bw.Write(data.Alpha);
+                                bw.Write(data.Color);
+                            });
                             break;
                         case Format.L4:
                             WriteNibble((color.R + color.G + color.B) / 48);
@@ -296,5 +310,7 @@ namespace Cetera.Image
 
             return ms.ToArray();
         }
+
+        //public byte[] RecompressETC1(
     }
 }

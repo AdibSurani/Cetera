@@ -28,7 +28,7 @@ namespace Cetera.Image
             public int const1; // 30 30 00 00
             public short const2; // 30 00
             public Format imageFormat;
-            public Common.Swizzle swizzle; // always 01?
+            public Swizzle swizzle; // always 01?
             public byte combineFormat;
             public byte bitDepth;
             public short bytesPerTile;
@@ -50,8 +50,7 @@ namespace Cetera.Image
         }
 
         public Bitmap Image { get; set; }
-        public Format ImageFormat { get; set; }
-        public Common.Swizzle Swizzle { get; set; }
+        public Settings Settings { get; set; }
         public int CombineFormat { get; set; }
 
         public XI(Stream input)
@@ -59,8 +58,8 @@ namespace Cetera.Image
             using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
-                ImageFormat = header.imageFormat;
-                Swizzle = header.swizzle;
+                Settings = new Settings { Width = header.width, Height = header.height, Swizzle = header.swizzle, PadToPowerOf2 = false };
+                Settings.SetFormat(header.imageFormat);
                 CombineFormat = header.combineFormat;
 
                 if (CombineFormat != 1)
@@ -79,8 +78,8 @@ namespace Cetera.Image
                         ms.Write(buf2, index * header.bytesPerTile, header.bytesPerTile);
                     }
                 }
-                var colors = Common.GetColorsFromTexture(ms.ToArray(), header.imageFormat);
-                Image = Common.Load(colors, header.width, header.height, header.swizzle, false);
+                var tmp = ms.ToArray();
+                Image = Common.Load(ms.ToArray(), Settings);
             }
         }
     }

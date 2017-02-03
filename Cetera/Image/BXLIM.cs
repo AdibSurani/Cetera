@@ -15,7 +15,7 @@ namespace Cetera.Image
             public short width;
             public short height;
             public Format format;
-            public Common.Swizzle swizzle;
+            public Swizzle swizzle;
             public short unknown;
         }
 
@@ -26,7 +26,7 @@ namespace Cetera.Image
             public short height;
             public short unknown;
             public Format format;
-            public Common.Swizzle swizzle;
+            public Swizzle swizzle;
         }
 
         public enum Format : byte
@@ -38,8 +38,7 @@ namespace Cetera.Image
         }
 
         public Bitmap Image { get; set; }
-        public Format ImageFormat { get; set; }
-        public Common.Swizzle Swizzle { get; set; }
+        public Settings Settings { get; set; }
         public short UnknownShort { get; set; }
 
         public BXLIM(Stream input)
@@ -49,31 +48,24 @@ namespace Cetera.Image
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
                 string magic;
                 var imagData = br.ReadSections(out magic).Single().Data;
-                int width, height;
                 switch (magic)
                 {
                     case "CLIM":
                         var bclim = imagData.ToStruct<BCLIMImageHeader>();
-                        width = bclim.width;
-                        height = bclim.height;
-                        ImageFormat = bclim.format;
-                        Swizzle = bclim.swizzle;
+                        Settings = new Settings { Width = bclim.width, Height = bclim.height, Swizzle = bclim.swizzle };
+                        Settings.SetFormat(bclim.format);
                         UnknownShort = bclim.unknown;
                         break;
                     case "FLIM":
                         var bflim = imagData.ToStruct<BFLIMImageHeader>();
-                        width = bflim.width;
-                        height = bflim.height;
-                        ImageFormat = bflim.format;
-                        Swizzle = bflim.swizzle;
+                        Settings = new Settings { Width = bflim.width, Height = bflim.height, Swizzle = bflim.swizzle };
+                        Settings.SetFormat(bflim.format);
                         UnknownShort = bflim.unknown;
                         break;
                     default:
                         throw new NotSupportedException($"Unknown image format {magic}");
                 }
-
-                var colors = Common.GetColorsFromTexture(tex, ImageFormat);
-                Image = Common.Load(colors, width, height, Swizzle, true);
+                Image = Common.Load(tex, Settings);
             }
         }
     }

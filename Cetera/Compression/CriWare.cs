@@ -89,8 +89,6 @@ namespace Cetera.Compression
                                 result.AddRange(br.ReadBytes(flag + 1));
                             if (result.Count == size)
                             {
-                                if (br.BaseStream.Position != br.BaseStream.Length)
-                                    throw new Exception("Haven't consumed all data in stream");
                                 return result.ToArray();
                             }
                             else if (result.Count > size)

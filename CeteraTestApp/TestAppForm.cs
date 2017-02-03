@@ -14,6 +14,7 @@ using Cetera.Compression;
 using Cetera.Font;
 using Cetera.Hardware;
 using Cetera.Image;
+using Cetera.IO;
 using Cetera.Layout;
 using Cetera.Text;
 
@@ -43,6 +44,9 @@ namespace CeteraTestApp
                 case ".bclim":
                 case ".bflim":
                     BackgroundImage = new BXLIM(File.OpenRead(path)).Image;
+                    break;
+                case ".jtex":
+                    BackgroundImage = new JTEX(File.OpenRead(path)).Image;
                     break;
                 case ".msbt":
                     var msbt = new MSBT(File.OpenRead(path));
@@ -79,7 +83,7 @@ namespace CeteraTestApp
             var fntRim = new BCFNT(GZip.OpenRead(@"C:\dbbp\unver\patch\font\BasicRim.bcfnt.gz"));
             var bmp = (Bitmap)Image.FromFile(@"C:\Users\Adib\Desktop\daigasso.png");
             fnt.SetColor(Color.Black);
-            fntSym.SetColor(Color.Black);
+            fntSym.SetColor(Color.Black);            
             using (var g = Graphics.FromImage(bmp))
             {
                 g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
@@ -127,6 +131,7 @@ namespace CeteraTestApp
                 }
             }
             BackgroundImage = bmp;
+            BackgroundImage = fntSym.bmp;
         }
 
         public void TestLayout(string path)
@@ -143,10 +148,27 @@ namespace CeteraTestApp
             DragDrop += (s, e) => TestFile(((string[])e.Data.GetData(DataFormats.FileDrop)).First());
 
             TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
+            //TestFile(@"C:\dqmrs3\Images&Menus\Layout\Menu\Upper_menu.arc\extracted\timg\txt_item.bclim");
+            //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
+            //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
+            //TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
             //TestXFFont(@"C:\Users\Adib\Downloads\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\Users\Adib\Desktop\ms_normal.bclyt");
             //TestDaigasso();
 
+            using (var br = new BinaryReaderX(File.OpenRead(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex")))
+            {
+                br.ReadBytes(128);
+                var tex = br.ReadBytes(65536);
+                var settings = new Settings { Width = 512, Height = 128, Format = Format.ETC1A4 };
+                var bmp = Common.Load(tex, settings);
+
+                // Recompress
+                var etc = Common.Save(bmp, settings);
+                bmp = Common.Load(etc, settings);
+
+                BackgroundImage = bmp;
+            }
 
             return;
 

@@ -20,6 +20,7 @@ namespace Cetera.IO
             Write((byte)bytes.Length);
             Write(bytes);
         }
+
         public unsafe void WriteStruct<T>(T item)
         {
             var buffer = new byte[Marshal.SizeOf(typeof(T))];
