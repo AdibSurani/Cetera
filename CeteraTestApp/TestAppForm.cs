@@ -147,7 +147,7 @@ namespace CeteraTestApp
             DragEnter += (s, e) => e.Effect = DragDropEffects.Copy;
             DragDrop += (s, e) => TestFile(((string[])e.Data.GetData(DataFormats.FileDrop)).First());
 
-            TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
+            //TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
             //TestFile(@"C:\dqmrs3\Images&Menus\Layout\Menu\Upper_menu.arc\extracted\timg\txt_item.bclim");
             //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
             //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
@@ -156,19 +156,19 @@ namespace CeteraTestApp
             //TestLayout(@"C:\Users\Adib\Desktop\ms_normal.bclyt");
             //TestDaigasso();
 
-            using (var br = new BinaryReaderX(File.OpenRead(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex")))
-            {
-                br.ReadBytes(128);
-                var tex = br.ReadBytes(65536);
-                var settings = new Settings { Width = 512, Height = 128, Format = Format.ETC1A4 };
-                var bmp = Common.Load(tex, settings);
+            //using (var br = new BinaryReaderX(File.OpenRead(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex")))
+            //{
+            //    br.ReadBytes(128);
+            //    var tex = br.ReadBytes(65536);
+            //    var settings = new Settings { Width = 512, Height = 128, Format = Format.ETC1A4 };
+            //    var bmp = Common.Load(tex, settings);
 
-                // Recompress
-                var etc = Common.Save(bmp, settings);
-                bmp = Common.Load(etc, settings);
+            //    // Recompress
+            //    var etc = Common.Save(bmp, settings);
+            //    bmp = Common.Load(etc, settings);
 
-                BackgroundImage = bmp;
-            }
+            //    BackgroundImage = bmp;
+            //}
 
             return;
 

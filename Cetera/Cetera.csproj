@@ -66,7 +66,7 @@
     <Compile Include="Image\XI.cs" />
     <Compile Include="IO\IOExtensions.cs" />
     <Compile Include="Hardware\OnionFS.cs" />
-    <Compile Include="Image\RgEtc1.cs" />
+    <Compile Include="Image\Etc1.cs" />
     <Compile Include="Text\MSBT.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">

@@ -4,9 +4,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Cetera.IO;
 
 namespace Cetera.Image
@@ -57,9 +54,16 @@ namespace Cetera.Image
 
     public class Common
     {
-        public static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
+        static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
 
-        public static IEnumerable<Color> GetColorsFromTexture(byte[] tex, Format format)
+        static int PadDimension(int n, bool po2)
+        {
+            n = (n + 7) & ~7;
+            if (po2) n = 2 << (int)Math.Log(n - 1, 2);
+            return n;
+        }
+
+        static IEnumerable<Color> GetColorsFromTexture(byte[] tex, Format format)
         {
             using (var br = new BinaryReaderX(new MemoryStream(tex)))
             {
@@ -140,18 +144,10 @@ namespace Cetera.Image
             }
         }
 
-        //public int nlpo2(int n) => 2 << (int)Math.Log(n - 1, 2);
-        static int pad(int n, bool po2)
-        {
-            n = (n + 7) & ~7;
-            if (po2) n = 2 << (int)Math.Log(n - 1, 2);
-            return n;
-        }
-
         static IEnumerable<Point> GetPointSequence(Settings settings)
         {
-            int strideWidth = pad(settings.Width, settings.PadToPowerOf2);
-            int strideHeight = pad(settings.Width, settings.PadToPowerOf2);
+            int strideWidth = PadDimension(settings.Width, settings.PadToPowerOf2);
+            int strideHeight = PadDimension(settings.Height, settings.PadToPowerOf2);
             int stride = (int)settings.Swizzle < 4 ? strideWidth : strideHeight;
             for (int i = 0; i < strideWidth * strideHeight; i++)
             {
@@ -205,38 +201,20 @@ namespace Cetera.Image
             return bmp;
         }
         
-        // This is not yet implemented and will throw a NotImplentedException
         public static byte[] Save(Bitmap bmp, Settings settings)
         {
             settings.Width = bmp.Width;
             settings.Height = bmp.Height;
             var points = GetPointSequence(settings);
 
-            //throw new NotImplementedException("Need to make changes to some swizzle stuff");
             var ms = new MemoryStream();
             int width = bmp.Width, height = bmp.Height;
-            int stride = 0;
 
             var etc1colors = new Queue<Color>();
             var etc1encoder = new Etc1.Encoder();
 
-            using (var bw = new BinaryWriter(ms))
+            using (var bw = new BinaryWriterX(ms))
             {
-                int? nibble = null;
-                Action<int> WriteNibble = val =>
-                {
-                    val &= 15;
-                    if (nibble == null)
-                    {
-                        nibble = val;
-                    }
-                    else
-                    {
-                        bw.Write((byte)(nibble.Value + 16 * val));
-                        nibble = null;
-                    }
-                };
-
                 foreach (var point in points)
                 {
                     int x = Clamp(point.X, 0, bmp.Width - 1);
@@ -254,8 +232,8 @@ namespace Cetera.Image
                             bw.Write(color.A);
                             break;
                         case Format.LA44:
-                            WriteNibble(color.A / 16);
-                            WriteNibble(color.G / 16);
+                            bw.WriteNibble(color.A / 16);
+                            bw.WriteNibble(color.G / 16);
                             break;
                         case Format.LA88:
                             bw.Write(color.A);
@@ -277,10 +255,10 @@ namespace Cetera.Image
                             bw.Write((short)((color.R / 8 << 11) | (color.G / 8 << 6) | (color.B / 8 << 1) | color.A / 128));
                             break;
                         case Format.RGBA4444:
-                            WriteNibble(color.A / 16);
-                            WriteNibble(color.B / 16);
-                            WriteNibble(color.G / 16);
-                            WriteNibble(color.R / 16);
+                            bw.WriteNibble(color.A / 16);
+                            bw.WriteNibble(color.B / 16);
+                            bw.WriteNibble(color.G / 16);
+                            bw.WriteNibble(color.R / 16);
                             break;
                         case Format.RGBA8888:
                             bw.Write(color.A);
@@ -297,10 +275,10 @@ namespace Cetera.Image
                             });
                             break;
                         case Format.L4:
-                            WriteNibble((color.R + color.G + color.B) / 48);
+                            bw.WriteNibble(color.G / 16);
                             break;
                         case Format.A4:
-                            WriteNibble(color.A / 3);
+                            bw.WriteNibble(color.A / 16);
                             break;
                         default:
                             throw new NotSupportedException();
@@ -310,7 +288,5 @@ namespace Cetera.Image
 
             return ms.ToArray();
         }
-
-        //public byte[] RecompressETC1(
     }
 }
