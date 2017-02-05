@@ -30,12 +30,6 @@ namespace Cetera.Image
 
     class Etc1
     {
-        [DllImport("rg_etc1.dll", CallingConvention = CallingConvention.Cdecl)]
-        static extern bool pack_etc1_block_init();
-
-        [DllImport("rg_etc1.dll", CallingConvention = CallingConvention.Cdecl)]
-        static extern int pack_etc1_block(byte[] pETC1_block, int[] pSrc_pixels_rgba, int[] pack_params);
-
         static readonly int[] order3ds = { 0, 4, 1, 5, 8, 12, 9, 13, 2, 6, 3, 7, 10, 14, 11, 15 };
 
         static int[][] modifiers =
@@ -50,15 +44,23 @@ namespace Cetera.Image
             new[] { 47, 183, -47, -183 }
         };
 
-        public struct ColorQ
+        public struct RGB
         {
-            public byte A;
-            public byte R;
-            public byte G;
-            public byte B;
+            public byte R, G, B, padding; // padding for speed reasons
 
-            public static ColorQ FromArgb(int pa, int pr, int pg, int pb) => new ColorQ { A = (byte)pa, R = (byte)pr, G = (byte)pg, B = (byte)pb };
-            public static ColorQ FromArgb(int pr, int pg, int pb) => new ColorQ { A = 255, R = (byte)pr, G = (byte)pg, B = (byte)pb };
+            public RGB(int r, int g, int b)
+            {
+                R = (byte)r;
+                G = (byte)g;
+                B = (byte)b;
+                padding = 0;
+            }
+
+            public static RGB operator +(RGB c, int mod) => new RGB(Clamp(c.R + mod), Clamp(c.G + mod), Clamp(c.B + mod));
+            public static int operator -(RGB c1, RGB c2) => ErrorRGB(c1.R - c2.R, c1.G - c2.G, c1.B - c2.B);
+            public static RGB Average(IEnumerable<RGB> src) => new RGB((int)src.Average(c => c.R), (int)src.Average(c => c.G), (int)src.Average(c => c.B));
+            public RGB Scale(int limit) => limit == 16 ? new RGB(R * 17, G * 17, B * 17) : new RGB((R << 3) | (R >> 2), (G << 3) | (G >> 2), (B << 3) | (B >> 2));
+            public RGB Unscale(int limit) => new RGB(R * limit / 256, G * limit / 256, B * limit / 256);
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -81,6 +83,7 @@ namespace Cetera.Image
                 get { return (flags & 2) == 2; }
                 set { flags = (byte)((flags & ~2) | (value ? 2 : 0)); }
             }
+            public int ColorDepth => DiffBit ? 32 : 16;
             public int Table0
             {
                 get { return (flags >> 5) & 7; }
@@ -92,11 +95,19 @@ namespace Cetera.Image
                 set { flags = (byte)((flags & ~(7 << 2)) | (value << 2)); }
             }
             public int this[int i] => (MSB >> i) % 2 * 2 + (LSB >> i) % 2;
-        }
 
-        static Etc1()
-        {
-            pack_etc1_block_init();
+            public RGB Color0 => new RGB(R * ColorDepth / 256, G * ColorDepth / 256, B * ColorDepth / 256);
+
+            public RGB Color1
+            {
+                get
+                {
+                    if (!DiffBit) return new RGB(R % 16, G % 16, B % 16);
+                    var c0 = Color0;
+                    int rd = Sign3(R % 8), gd = Sign3(G % 8), bd = Sign3(B % 8);
+                    return new RGB(c0.R + rd, c0.G + gd, c0.B + bd);
+                }
+            }
         }
 
         public struct PixelData
@@ -109,77 +120,66 @@ namespace Cetera.Image
         static int Sign3(int n) => ((n + 4) % 8) - 4;
         static int Extend5to8(int n) => (n << 3) | (n >> 2);
         static int Square(int n) => n * n;
-        //static int ErrorRGB(int r, int g, int b) => Square(r) + Square(g) + Square(b);
+        //static int ErrorRGB(int r, int g, int b) => Square(r) + Square(g) + Square(b); // standard version used in rg_etc1
         static int ErrorRGB(int r, int g, int b) => 2 * Square(r) + 4 * Square(g) + 3 * Square(b); // human perception
-
-        static ColorQ AddColor(ColorQ basec, int mod, int alpha = 255)
-        {
-            return ColorQ.FromArgb(alpha, Clamp(basec.R + mod), Clamp(basec.G + mod), Clamp(basec.B + mod));
-        }
 
         public class Decoder
         {
-            Queue<ColorQ> queue = new Queue<ColorQ>();
+            Queue<Color> queue = new Queue<Color>();
 
             public Color Get(Func<PixelData> func)
             {
                 if (!queue.Any())
                 {
                     var data = func();
-
-                    ColorQ basec0, basec1;
-                    if (data.Block.DiffBit)
-                    {
-                        int r1 = data.Block.R / 8, g1 = data.Block.G / 8, b1 = data.Block.B / 8;
-                        int r2 = r1 + Sign3(data.Block.R % 8), g2 = g1 + Sign3(data.Block.G % 8), b2 = b1 + Sign3(data.Block.B % 8);
-                        basec0 = ColorQ.FromArgb(Extend5to8(r1), Extend5to8(g1), Extend5to8(b1));
-                        basec1 = ColorQ.FromArgb(Extend5to8(r2), Extend5to8(g2), Extend5to8(b2));
-                    }
-                    else
-                    {
-                        basec0 = ColorQ.FromArgb(data.Block.R / 16 * 17, data.Block.G / 16 * 17, data.Block.B / 16 * 17);
-                        basec1 = ColorQ.FromArgb(data.Block.R % 16 * 17, data.Block.G % 16 * 17, data.Block.B % 16 * 17);
-                    }
+                    var basec0 = data.Block.Color0.Scale(data.Block.ColorDepth);
+                    var basec1 = data.Block.Color1.Scale(data.Block.ColorDepth);
 
                     int flipbitmask = data.Block.FlipBit ? 2 : 8;
                     foreach (int i in order3ds)
                     {
                         var basec = (i & flipbitmask) == 0 ? basec0 : basec1;
                         var mod = modifiers[(i & flipbitmask) == 0 ? data.Block.Table0 : data.Block.Table1];
-                        queue.Enqueue(AddColor(basec, mod[data.Block[i]], (byte)(data.Alpha >> (4 * i)) % 16 * 17));
+                        var c = basec + mod[data.Block[i]];
+                        queue.Enqueue(Color.FromArgb((int)((data.Alpha >> (4 * i)) % 16 * 17), c.R, c.G, c.B));
                     }
                 }
-                var cq = queue.Dequeue();
-                return Color.FromArgb(cq.A, cq.R, cq.G, cq.B);
+                return queue.Dequeue();
             }
         }
 
-        // To be slowly copied from rg_etc1
+        public class Encoder
+        {
+            List<Color> queue = new List<Color>();
+
+            public void Set(Color c, Action<PixelData> func)
+            {
+                queue.Add(c);
+                if (queue.Count == 16)
+                {
+                    var colors = Enumerable.Range(0, 16).Select(j => queue[order3ds[order3ds[order3ds[j]]]]); // invert order3ds
+                    var alpha = colors.Reverse().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
+                    var data = Etc1Optimizer.Encode(colors.Select(c2 => new RGB(c2.R, c2.G, c2.B)).ToList());
+
+                    func(new PixelData { Alpha = alpha, Block = data });
+                    queue.Clear();
+                }
+            }
+        }
+
+        // Loosely based on rg_etc1
         class Etc1Optimizer
         {
-            static ColorQ Unscale(ColorQ c)
-            {
-                if (c.A == 16) return ColorQ.FromArgb(c.R * 17, c.G * 17, c.B * 17);
-                else return ColorQ.FromArgb((c.R << 3) | (c.R >> 2), (c.G << 3) | (c.G >> 2), (c.B << 3) | (c.B >> 2));
-            }
-
-            static int ColorDiff(ColorQ c1, ColorQ c2)
-            {
-                return ErrorRGB(c1.R - c2.R, c1.G - c2.G, c1.B - c2.B);
-            }
-
-            static int[][] g_etc1_inverse_lookup = (from limit in new[] { 16, 32 }
-                                                    from inten in modifiers
-                                                    from selector in inten
-                                                    select (from color in Enumerable.Range(0, 256)
-                                                            select Enumerable.Range(0, limit).Min(packed_c =>
-                                                            {
-                                                                int c = (limit == 32) ? (packed_c << 3) | (packed_c >> 2) : packed_c * 17;
-                                                                int err = Math.Abs(Clamp(c + selector) - color);
-                                                                return (err << 8) | packed_c;
-                                                            }))
-                                                            .ToArray())
-                                                    .ToArray();
+            static int[] inverseLookup = (from limit in new[] { 16, 32 }
+                                          from inten in modifiers
+                                          from selector in inten
+                                          from color in Enumerable.Range(0, 256)
+                                          select Enumerable.Range(0, limit).Min(packed_c =>
+                                          {
+                                              int c = (limit == 32) ? (packed_c << 3) | (packed_c >> 2) : packed_c * 17;
+                                              int err = Math.Abs(Clamp(c + selector) - color);
+                                              return (err << 8) | packed_c;
+                                          })).ToArray();
 
             const int MAX_ERROR = 99999999;
 
@@ -187,8 +187,8 @@ namespace Cetera.Image
             {
                 public SolutionSet()
                 {
-                    Add(new Solution());
-                    Add(new Solution());
+                    Add(new Solution { error = MAX_ERROR });
+                    Add(new Solution { error = MAX_ERROR });
                 }
                 public bool flip;
                 public bool diff;
@@ -197,34 +197,34 @@ namespace Cetera.Image
             public struct Solution
             {
                 public int error;
-                public ColorQ blockColour; // check A = 16 or 32
+                public RGB blockColour; // check A = 16 or 32
                 public int[] intenTable;
                 public byte selectorMSB;
                 public byte selectorLSB;
             }
 
-            List<ColorQ> pixels;
-            ColorQ avgColor;
-            int limit;
+            //List<RGB> pixels;
+            //RGB avgColor;
+            //int limit;
 
-            public Etc1Optimizer(IEnumerable<ColorQ> srcPixels, int srcLimit)
-            {
-                pixels = srcPixels.ToList();
-                limit = srcLimit;
-                avgColor = ColorQ.FromArgb(16, (int)pixels.Average(c => c.R) * limit / 256, (int)pixels.Average(c => c.G) * limit / 256, (int)pixels.Average(c => c.B) * limit / 256);
-            }
+            //public Etc1Optimizer(IEnumerable<RGB> srcPixels, int srcLimit)
+            //{
+            //    pixels = srcPixels.ToList();
+            //    limit = srcLimit;
+            //    avgColor = RGB.Average(pixels).Unscale(limit);
+            //}
 
-            public Solution ComputeConstrained(ColorQ firstColor)
-            {
-                return Compute(firstColor, new[] { -4, -3, -2, -1, 0, 1, 2, 3 });
-            }
+            //public Solution ComputeConstrained(RGB firstColor)
+            //{
+            //    return Compute(firstColor, new[] { -4, -3, -2, -1, 0, 1, 2, 3 });
+            //}
 
-            public Solution Compute(params int[] deltas)
-            {
-                return Compute(avgColor, deltas);
-            }
+            //public Solution Compute(params int[] deltas)
+            //{
+            //    return Compute(avgColor, deltas);
+            //}
 
-            Solution Compute(ColorQ color, int[] deltas)
+            public static Solution Compute(RGB color, int limit, List<RGB> pixels, params int[] deltas)
             {
                 return (from zd in deltas
                         let z = zd + color.B
@@ -235,32 +235,36 @@ namespace Cetera.Image
                         from xd in deltas
                         let x = xd + color.R
                         where x >= 0 && x < limit
-                        let c = ColorQ.FromArgb(limit, x, y, z)
+                        let c = new RGB(x, y, z)
+                        //let scaled = new RGB(x, y, z).Scale(limit)
                         from t in modifiers
-                        select EvaluateSolution(c, t))
+                        select EvaluateSolution(c, limit, pixels, t))
                         .MinBy(soln => soln.error);
             }
 
-            public Solution EvaluateSolution(ColorQ c)
-            {
-                return modifiers.Select(t => EvaluateSolution(c, t)).MinBy(soln => soln.error);
-                // skip the refinement for now
-            }
+            //public IEnumerable<Solution> GetSolutions(RGB c)
+            //{
+            //    foreach (var intenTable in modifiers)
+            //    {
+            //        yield return EvaluateSolution(c, intenTable);
+            //        // do some kind of refinement here?
+            //    }
+            //}
 
-            public Solution EvaluateSolution(ColorQ c, int[] intenTable)
+            public static Solution EvaluateSolution(RGB c, int limit, List<RGB> pixels, int[] intenTable)
             {
                 var soln = new Solution { blockColour = c, intenTable = intenTable };
-                var unscaledColor = Unscale(c);
-                var newTable = new ColorQ[4];
+                var scaledColor = c.Scale(limit);
+                var newTable = new RGB[4];
                 for (int i = 0; i < 4; i++)
-                    newTable[i] = AddColor(unscaledColor, intenTable[i]);
+                    newTable[i] = scaledColor + intenTable[i];
 
                 for (int i = 0; i < 8; i++)
                 {
                     int best_j = 0, best_error = MAX_ERROR;
                     for (int j = 0; j < 4; j++)
                     {
-                        int error = ColorDiff(pixels[i], newTable[j]);
+                        int error = pixels[i] - newTable[j];
                         if (error < best_error)
                         {
                             best_error = error;
@@ -274,12 +278,15 @@ namespace Cetera.Image
                 return soln;
             }
 
-            public static Block PackSolidColor(ColorQ c)
+            public static Block PackSolidColor(RGB c)
             {
                 var soln = (from i in Enumerable.Range(0, 64)
-                            let table = g_etc1_inverse_lookup[i]
-                            let error = ErrorRGB(table[c.R] >> 8, table[c.G] >> 8, table[c.B] >> 8)
-                            let blockColour = ColorQ.FromArgb((byte)table[c.R], (byte)table[c.G], (byte)table[c.B])
+                            let r = inverseLookup[i * 256 + c.R]
+                            let g = inverseLookup[i * 256 + c.G]
+                            let b = inverseLookup[i * 256 + c.B]
+                            let table = inverseLookup[i]
+                            let error = ErrorRGB(r >> 8, g >> 8, b >> 8)
+                            let blockColour = new RGB(r, g, b)
                             select new Solution { error = error, blockColour = blockColour, selectorMSB = (byte)i })
                             .MinBy(s => s.error);
 
@@ -298,10 +305,8 @@ namespace Cetera.Image
                 };
             }
 
-            public static Block Encode(List<ColorQ> colors, out ulong alpha)
+            public static Block Encode(List<RGB> colors)
             {
-                colors = Enumerable.Range(0, 16).Select(j => colors[order3ds[order3ds[order3ds[j]]]]).ToList();
-                alpha = colors.Reverse<ColorQ>().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
                 if (colors.Distinct().Count() == 1)
                 {
                     return PackSolidColor(colors[0]);
@@ -311,28 +316,38 @@ namespace Cetera.Image
                 int best_error = MAX_ERROR;
                 foreach (var flip in new[] { false, true })
                 {
+                    var lstColors = new[] { 0, 1 }.Select(i => colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i).ToList()).ToList();
+
                     foreach (var diff in new[] { false, true })
                     {
                         var solns = new SolutionSet { diff = diff, flip = flip };
+                        int limit = diff ? 32 : 16;
+                        var avgColor = lstColors.Select(x => RGB.Average(x).Unscale(limit)).ToList();
                         for (int i = 0; i < 2; i++)
                         {
-                            var optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
+                            //var optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
                             if (i == 1 && diff)
                             {
-                                solns[1] = optimizer.ComputeConstrained(solns[0].blockColour);
+                                //solns[1] = optimizer.ComputeConstrained(solns[0].blockColour);
+                                solns[1] = Compute(solns[0].blockColour, limit, lstColors[1], -4, -3, -2, -1, 0, 1, 2, 3);
                             }
                             else
                             {
-                                solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
+                                //solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
+                                //solns[i] = optimizer.Compute(0);
+                                solns[i] = Compute(avgColor[i], limit, lstColors[i], 0);
 
                                 if (solns[i].error > 9000)
                                 {
-                                    var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
+                                    //var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
+                                    var refine = Compute(avgColor[i], limit, lstColors[i], -8, -7, -6, -5, 4, 5, 6, 7);
 
                                     if (refine.error < solns[i].error)
                                         solns[i] = refine;
                                 }
                             }
+
+                            if (solns[i].error >= best_error) break;
                         }
 
                         int sum = solns[0].error + solns[1].error;
@@ -386,45 +401,6 @@ namespace Cetera.Image
                 }
                 return blk;
 
-            }
-        }
-
-        public class Encoder
-        {
-            // This uses rg_etc1.dll as a baseline
-            unsafe static Block EncodeWithCpp(List<ColorQ> colors, out ulong alpha)
-            {
-                colors = Enumerable.Range(0, 16).Select(j => colors[order3ds[order3ds[order3ds[j]]]]).ToList();
-                alpha = colors.Reverse<ColorQ>().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
-
-                var colorArray = new int[16];
-                for (int i = 0; i < 16; i++)
-                {
-                    var color = colors[(i % 4) * 4 + i / 4];
-                    colorArray[i] = BitConverter.ToInt32(new byte[] { color.R, color.G, color.B, 255 }, 0);
-                }
-
-                var packed = new byte[8];
-                pack_etc1_block(packed, colorArray, new[] { 2, 0 }); // high quality with no dithering
-
-                fixed (byte* pBuffer = packed.Reverse().ToArray())
-                    return Marshal.PtrToStructure<Block>((IntPtr)pBuffer);
-            }
-
-            Queue<ColorQ> queue = new Queue<ColorQ>();
-
-            public void Set(Color c, Action<PixelData> func)
-            {
-                queue.Enqueue(ColorQ.FromArgb(c.A, c.R, c.G, c.B));
-                if (queue.Count == 16)
-                {
-                    ulong alpha;
-                    var data = Etc1Optimizer.Encode(queue.ToList(), out alpha);
-                    //var data = EncodeWithCpp(queue.ToList(), out alpha);
-
-                    func(new PixelData { Alpha = alpha, Block = data });
-                    queue.Clear();
-                }
             }
         }
     }
