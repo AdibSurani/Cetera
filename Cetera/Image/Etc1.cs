@@ -159,7 +159,7 @@ namespace Cetera.Image
                 {
                     var colors = Enumerable.Range(0, 16).Select(j => queue[order3ds[order3ds[order3ds[j]]]]); // invert order3ds
                     var alpha = colors.Reverse().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
-                    var data = Etc1Optimizer.Encode(colors.Select(c2 => new RGB(c2.R, c2.G, c2.B)).ToList());
+                    var data = Optimizer.Encode(colors.Select(c2 => new RGB(c2.R, c2.G, c2.B)).ToList());
 
                     func(new PixelData { Alpha = alpha, Block = data });
                     queue.Clear();
@@ -168,7 +168,7 @@ namespace Cetera.Image
         }
 
         // Loosely based on rg_etc1
-        class Etc1Optimizer
+        class Optimizer
         {
             static int[] inverseLookup = (from limit in new[] { 16, 32 }
                                           from inten in modifiers
@@ -177,8 +177,7 @@ namespace Cetera.Image
                                           select Enumerable.Range(0, limit).Min(packed_c =>
                                           {
                                               int c = (limit == 32) ? (packed_c << 3) | (packed_c >> 2) : packed_c * 17;
-                                              int err = Math.Abs(Clamp(c + selector) - color);
-                                              return (err << 8) | packed_c;
+                                              return (Math.Abs(Clamp(c + selector) - color) << 8) | packed_c;
                                           })).ToArray();
 
             const int MAX_ERROR = 99999999;
@@ -197,64 +196,43 @@ namespace Cetera.Image
             public struct Solution
             {
                 public int error;
-                public RGB blockColour; // check A = 16 or 32
+                public RGB blockColour;
                 public int[] intenTable;
                 public byte selectorMSB;
                 public byte selectorLSB;
             }
 
-            //List<RGB> pixels;
-            //RGB avgColor;
-            //int limit;
+            List<RGB> pixels;
+            public RGB baseColor;
+            int limit;
 
-            //public Etc1Optimizer(IEnumerable<RGB> srcPixels, int srcLimit)
-            //{
-            //    pixels = srcPixels.ToList();
-            //    limit = srcLimit;
-            //    avgColor = RGB.Average(pixels).Unscale(limit);
-            //}
+            public Optimizer(IEnumerable<RGB> pixels, int limit)
+            {
+                this.pixels = pixels.ToList();
+                this.limit = limit;
+                baseColor = RGB.Average(pixels).Unscale(limit);
+            }
 
-            //public Solution ComputeConstrained(RGB firstColor)
-            //{
-            //    return Compute(firstColor, new[] { -4, -3, -2, -1, 0, 1, 2, 3 });
-            //}
-
-            //public Solution Compute(params int[] deltas)
-            //{
-            //    return Compute(avgColor, deltas);
-            //}
-
-            public static Solution Compute(RGB color, int limit, List<RGB> pixels, params int[] deltas)
+            public Solution Compute(params int[] deltas)
             {
                 return (from zd in deltas
-                        let z = zd + color.B
+                        let z = zd + baseColor.B
                         where z >= 0 && z < limit
                         from yd in deltas
-                        let y = yd + color.G
+                        let y = yd + baseColor.G
                         where y >= 0 && y < limit
                         from xd in deltas
-                        let x = xd + color.R
+                        let x = xd + baseColor.R
                         where x >= 0 && x < limit
-                        let c = new RGB(x, y, z)
-                        //let scaled = new RGB(x, y, z).Scale(limit)
+                        let c = new RGB(x, y, z).Scale(limit)
                         from t in modifiers
-                        select EvaluateSolution(c, limit, pixels, t))
+                        select EvaluateSolution(c, t))
                         .MinBy(soln => soln.error);
             }
 
-            //public IEnumerable<Solution> GetSolutions(RGB c)
-            //{
-            //    foreach (var intenTable in modifiers)
-            //    {
-            //        yield return EvaluateSolution(c, intenTable);
-            //        // do some kind of refinement here?
-            //    }
-            //}
-
-            public static Solution EvaluateSolution(RGB c, int limit, List<RGB> pixels, int[] intenTable)
+            public Solution EvaluateSolution(RGB scaledColor, int[] intenTable)
             {
-                var soln = new Solution { blockColour = c, intenTable = intenTable };
-                var scaledColor = c.Scale(limit);
+                var soln = new Solution { blockColour = scaledColor, intenTable = intenTable };
                 var newTable = new RGB[4];
                 for (int i = 0; i < 4; i++)
                     newTable[i] = scaledColor + intenTable[i];
@@ -316,31 +294,25 @@ namespace Cetera.Image
                 int best_error = MAX_ERROR;
                 foreach (var flip in new[] { false, true })
                 {
-                    var lstColors = new[] { 0, 1 }.Select(i => colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i).ToList()).ToList();
-
                     foreach (var diff in new[] { false, true })
                     {
                         var solns = new SolutionSet { diff = diff, flip = flip };
-                        int limit = diff ? 32 : 16;
-                        var avgColor = lstColors.Select(x => RGB.Average(x).Unscale(limit)).ToList();
                         for (int i = 0; i < 2; i++)
                         {
-                            //var optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
+                            var optimizer = new Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
                             if (i == 1 && diff)
                             {
-                                //solns[1] = optimizer.ComputeConstrained(solns[0].blockColour);
-                                solns[1] = Compute(solns[0].blockColour, limit, lstColors[1], -4, -3, -2, -1, 0, 1, 2, 3);
+                                optimizer.baseColor = solns[0].blockColour.Unscale(32);
+                                solns[1] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
                             }
                             else
                             {
-                                //solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
-                                //solns[i] = optimizer.Compute(0);
-                                solns[i] = Compute(avgColor[i], limit, lstColors[i], 0);
+                                solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
 
+                                // this threshold was set arbitrarily
                                 if (solns[i].error > 9000)
                                 {
-                                    //var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
-                                    var refine = Compute(avgColor[i], limit, lstColors[i], -8, -7, -6, -5, 4, 5, 6, 7);
+                                    var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
 
                                     if (refine.error < solns[i].error)
                                         solns[i] = refine;
@@ -356,8 +328,8 @@ namespace Cetera.Image
                             best_error = sum;
                             bestsolns = solns;
                         }
-                    } // use_color4
-                } // flip
+                    }
+                }
 
                 var blk = new Block
                 {
@@ -367,20 +339,22 @@ namespace Cetera.Image
                     Table1 = Array.IndexOf(modifiers, bestsolns[1].intenTable)
                 };
 
+                var c0 = bestsolns[0].blockColour.Unscale(blk.DiffBit ? 32 : 16);
+                var c1 = bestsolns[1].blockColour.Unscale(blk.DiffBit ? 32 : 16);
                 if (blk.DiffBit)
                 {
-                    int rdiff = (bestsolns[1].blockColour.R - bestsolns[0].blockColour.R + 8) % 8;
-                    int gdiff = (bestsolns[1].blockColour.G - bestsolns[0].blockColour.G + 8) % 8;
-                    int bdiff = (bestsolns[1].blockColour.B - bestsolns[0].blockColour.B + 8) % 8;
-                    blk.R = (byte)(bestsolns[0].blockColour.R * 8 + rdiff);
-                    blk.G = (byte)(bestsolns[0].blockColour.G * 8 + gdiff);
-                    blk.B = (byte)(bestsolns[0].blockColour.B * 8 + bdiff);
+                    int rdiff = (c1.R - c0.R + 8) % 8;
+                    int gdiff = (c1.G - c0.G + 8) % 8;
+                    int bdiff = (c1.B - c0.B + 8) % 8;
+                    blk.R = (byte)(c0.R * 8 + rdiff);
+                    blk.G = (byte)(c0.G * 8 + gdiff);
+                    blk.B = (byte)(c0.B * 8 + bdiff);
                 }
                 else
                 {
-                    blk.R = (byte)(bestsolns[0].blockColour.R * 16 + bestsolns[1].blockColour.R);
-                    blk.G = (byte)(bestsolns[0].blockColour.G * 16 + bestsolns[1].blockColour.G);
-                    blk.B = (byte)(bestsolns[0].blockColour.B * 16 + bestsolns[1].blockColour.B);
+                    blk.R = (byte)(c0.R * 16 + c1.R);
+                    blk.G = (byte)(c0.G * 16 + c1.G);
+                    blk.B = (byte)(c0.B * 16 + c1.B);
                 }
 
                 if (blk.FlipBit)
