@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -174,7 +175,12 @@ namespace CeteraTestApp
             //}
 
             var settings = new Settings { Format = Format.ETC1A4 };
-            BackgroundImage = Common.Load(Common.Save((Bitmap)BackgroundImage, settings), settings);
+            var stp = System.Diagnostics.Stopwatch.StartNew();
+            var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
+            Text = stp.Elapsed.ToString();
+            stp.Restart();
+            BackgroundImage = Common.Load(tmp1, settings);
+            label1.Text = stp.Elapsed.ToString();
 
             return;
 
