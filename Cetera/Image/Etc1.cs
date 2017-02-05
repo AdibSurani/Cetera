@@ -109,6 +109,8 @@ namespace Cetera.Image
         static int Sign3(int n) => ((n + 4) % 8) - 4;
         static int Extend5to8(int n) => (n << 3) | (n >> 2);
         static int Square(int n) => n * n;
+        //static int ErrorRGB(int r, int g, int b) => Square(r) + Square(g) + Square(b);
+        static int ErrorRGB(int r, int g, int b) => 2 * Square(r) + 4 * Square(g) + 3 * Square(b); // human perception
 
         static ColorQ AddColor(ColorQ basec, int mod, int alpha = 255)
         {
@@ -157,14 +159,13 @@ namespace Cetera.Image
         {
             static ColorQ Unscale(ColorQ c)
             {
-                if (c.A != 16) throw new Exception();
-                return ColorQ.FromArgb(c.R * 17, c.G * 17, c.B * 17);
+                if (c.A == 16) return ColorQ.FromArgb(c.R * 17, c.G * 17, c.B * 17);
+                else return ColorQ.FromArgb((c.R << 3) | (c.R >> 2), (c.G << 3) | (c.G >> 2), (c.B << 3) | (c.B >> 2));
             }
 
-            static int Diff(ColorQ c1, ColorQ c2)
+            static int ColorDiff(ColorQ c1, ColorQ c2)
             {
-                return Square(c1.R - c2.R) + Square(c1.G - c2.G) + Square(c1.B - c2.B);
-                //return 2 * Square(c1.R - c2.R) + 4 * Square(c1.G - c2.G) + 3 * Square(c1.B - c2.B); // human perception
+                return ErrorRGB(c1.R - c2.R, c1.G - c2.G, c1.B - c2.B);
             }
 
             static int[][] g_etc1_inverse_lookup = (from limit in new[] { 16, 32 }
@@ -213,22 +214,31 @@ namespace Cetera.Image
                 avgColor = ColorQ.FromArgb(16, (int)pixels.Average(c => c.R) * limit / 256, (int)pixels.Average(c => c.G) * limit / 256, (int)pixels.Average(c => c.B) * limit / 256);
             }
 
+            public Solution ComputeConstrained(ColorQ firstColor)
+            {
+                return Compute(firstColor, new[] { -4, -3, -2, -1, 0, 1, 2, 3 });
+            }
+
             public Solution Compute(params int[] deltas)
             {
+                return Compute(avgColor, deltas);
+            }
+
+            Solution Compute(ColorQ color, int[] deltas)
+            {
                 return (from zd in deltas
-                        let z = zd + avgColor.B
+                        let z = zd + color.B
                         where z >= 0 && z < limit
                         from yd in deltas
-                        let y = yd + avgColor.G
+                        let y = yd + color.G
                         where y >= 0 && y < limit
                         from xd in deltas
-                        let x = xd + avgColor.R
+                        let x = xd + color.R
                         where x >= 0 && x < limit
                         let c = ColorQ.FromArgb(limit, x, y, z)
                         from t in modifiers
                         select EvaluateSolution(c, t))
                         .MinBy(soln => soln.error);
-
             }
 
             public Solution EvaluateSolution(ColorQ c)
@@ -250,7 +260,7 @@ namespace Cetera.Image
                     int best_j = 0, best_error = MAX_ERROR;
                     for (int j = 0; j < 4; j++)
                     {
-                        int error = Diff(pixels[i], newTable[j]);
+                        int error = ColorDiff(pixels[i], newTable[j]);
                         if (error < best_error)
                         {
                             best_error = error;
@@ -263,9 +273,6 @@ namespace Cetera.Image
                 }
                 return soln;
             }
-
-            public static int GetChannel(ColorQ c, int i) => i == 0 ? c.R : i == 1 ? c.G : c.B;
-            public static int ErrorRGB(int r, int g, int b) => Square(r) + Square(g) + Square(b);
 
             public static Block PackSolidColor(ColorQ c)
             {
@@ -300,46 +307,32 @@ namespace Cetera.Image
                     return PackSolidColor(colors[0]);
                 }
 
-                // THIS IS THE REALLY OLD CODE
-                //var topColors = colors.Where((c, i) => (i & 2) == 0).ToList();
-                //var bottomColors = colors.Where((c, i) => (i & 2) != 0).ToList();
-                //var leftColors = colors.Where((c, i) => (i & 8) == 0).ToList();
-                //var rightColors = colors.Where((c, i) => (i & 8) != 0).ToList();
-
                 SolutionSet bestsolns = null;
                 int best_error = MAX_ERROR;
-                foreach (var flip in new[] { false })
+                foreach (var flip in new[] { false, true })
                 {
-                    foreach (var diff in new[] { false }) // currently only use_color4
+                    foreach (var diff in new[] { false, true })
                     {
                         var solns = new SolutionSet { diff = diff, flip = flip };
                         for (int i = 0; i < 2; i++)
                         {
-                            // Check for solid block (constrained) -- not implemented!
-
-                            Etc1Optimizer optimizer;
-                            int limit = diff ? 32 : 16;
-                            if (!flip)
+                            var optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
+                            if (i == 1 && diff)
                             {
-                                optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / 8) % 2 == i), limit);
+                                solns[1] = optimizer.ComputeConstrained(solns[0].blockColour);
                             }
                             else
                             {
-                                optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / 2) % 2 == i), limit);
+                                solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
+
+                                if (solns[i].error > 9000)
+                                {
+                                    var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
+
+                                    if (refine.error < solns[i].error)
+                                        solns[i] = refine;
+                                }
                             }
-                            //solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3, 4);
-                            //solns[i] = optimizer.Compute(-2, -1, 0, 1, 2);
-                            //solns[i] = optimizer.Compute(-3, -2, -1, 0, 1, 2, 3);
-                            solns[i] = optimizer.Compute(-1, 0, 1);
-
-                            // uncomment later once everything runs much faster
-                            //if (solns[i].error > 3000)
-                            //{
-                            //    var refine = solns[i].error > 6000 ? optimizer.Compute(-8, -7, -6, -5, 5, 6, 7, 8) : optimizer.Compute(-5, 5);
-
-                            //    if (refine.error < solns[i].error)
-                            //        solns[i] = refine;
-                            //}
                         }
 
                         int sum = solns[0].error + solns[1].error;
