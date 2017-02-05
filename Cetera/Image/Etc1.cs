@@ -250,7 +250,6 @@ namespace Cetera.Image
                     int best_j = 0, best_error = MAX_ERROR;
                     for (int j = 0; j < 4; j++)
                     {
-                        //int error = Square(pixels[i].R - newTable[j].R) + Square(pixels[i].G - newTable[j].G) + Square(pixels[i].B - newTable[j].B);
                         int error = Diff(pixels[i], newTable[j]);
                         if (error < best_error)
                         {
@@ -309,28 +308,38 @@ namespace Cetera.Image
 
                 SolutionSet bestsolns = null;
                 int best_error = MAX_ERROR;
-                foreach (var flip in new[] { false }) // currently no flip
+                foreach (var flip in new[] { false })
                 {
-                    foreach (var diff in new[] { true }) // currently only use_color4
+                    foreach (var diff in new[] { false }) // currently only use_color4
                     {
                         var solns = new SolutionSet { diff = diff, flip = flip };
                         for (int i = 0; i < 2; i++)
                         {
                             // Check for solid block (constrained) -- not implemented!
 
-                            var optimizer = new Etc1Optimizer(colors.Skip(8 * i).Take(8), 16);
+                            Etc1Optimizer optimizer;
+                            int limit = diff ? 32 : 16;
+                            if (!flip)
+                            {
+                                optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / 8) % 2 == i), limit);
+                            }
+                            else
+                            {
+                                optimizer = new Etc1Optimizer(colors.Where((c, j) => (j / 2) % 2 == i), limit);
+                            }
                             //solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3, 4);
-                            solns[i] = optimizer.Compute(-2, -1, 0, 1, 2);
+                            //solns[i] = optimizer.Compute(-2, -1, 0, 1, 2);
                             //solns[i] = optimizer.Compute(-3, -2, -1, 0, 1, 2, 3);
+                            solns[i] = optimizer.Compute(-1, 0, 1);
 
                             // uncomment later once everything runs much faster
-                            if (solns[i].error > 3000)
-                            {
-                                var refine = solns[i].error > 6000 ? optimizer.Compute(-8, -7, -6, -5, 5, 6, 7, 8) : optimizer.Compute(-5, 5);
+                            //if (solns[i].error > 3000)
+                            //{
+                            //    var refine = solns[i].error > 6000 ? optimizer.Compute(-8, -7, -6, -5, 5, 6, 7, 8) : optimizer.Compute(-5, 5);
 
-                                if (refine.error < solns[i].error)
-                                    solns[i] = refine;
-                            }
+                            //    if (refine.error < solns[i].error)
+                            //        solns[i] = refine;
+                            //}
                         }
 
                         int sum = solns[0].error + solns[1].error;
@@ -342,15 +351,46 @@ namespace Cetera.Image
                     } // use_color4
                 } // flip
 
-                // only valid when DiffBit and FlipBit are both false!
-                var blk = new Block { DiffBit = false, FlipBit = false };
-                blk.R = (byte)(bestsolns[0].blockColour.R * 16 + bestsolns[1].blockColour.R);
-                blk.G = (byte)(bestsolns[0].blockColour.G * 16 + bestsolns[1].blockColour.G);
-                blk.B = (byte)(bestsolns[0].blockColour.B * 16 + bestsolns[1].blockColour.B);
-                blk.MSB = (ushort)(bestsolns[0].selectorMSB + 256 * bestsolns[1].selectorMSB);
-                blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
-                blk.Table0 = Array.IndexOf(modifiers, bestsolns[0].intenTable);
-                blk.Table1 = Array.IndexOf(modifiers, bestsolns[1].intenTable);
+                var blk = new Block
+                {
+                    DiffBit = bestsolns.diff,
+                    FlipBit = bestsolns.flip,
+                    Table0 = Array.IndexOf(modifiers, bestsolns[0].intenTable),
+                    Table1 = Array.IndexOf(modifiers, bestsolns[1].intenTable)
+                };
+
+                if (blk.DiffBit)
+                {
+                    int rdiff = (bestsolns[1].blockColour.R - bestsolns[0].blockColour.R + 8) % 8;
+                    int gdiff = (bestsolns[1].blockColour.G - bestsolns[0].blockColour.G + 8) % 8;
+                    int bdiff = (bestsolns[1].blockColour.B - bestsolns[0].blockColour.B + 8) % 8;
+                    blk.R = (byte)(bestsolns[0].blockColour.R * 8 + rdiff);
+                    blk.G = (byte)(bestsolns[0].blockColour.G * 8 + gdiff);
+                    blk.B = (byte)(bestsolns[0].blockColour.B * 8 + bdiff);
+                }
+                else
+                {
+                    blk.R = (byte)(bestsolns[0].blockColour.R * 16 + bestsolns[1].blockColour.R);
+                    blk.G = (byte)(bestsolns[0].blockColour.G * 16 + bestsolns[1].blockColour.G);
+                    blk.B = (byte)(bestsolns[0].blockColour.B * 16 + bestsolns[1].blockColour.B);
+                }
+
+                if (blk.FlipBit)
+                {
+                    int m0 = bestsolns[0].selectorMSB, m1 = bestsolns[1].selectorMSB;
+                    m0 = (m0 & 0xC0) * 64 + (m0 & 0x30) * 16 + (m0 & 0xC) * 4 + (m0 & 0x3);
+                    m1 = (m1 & 0xC0) * 64 + (m1 & 0x30) * 16 + (m1 & 0xC) * 4 + (m1 & 0x3);
+                    blk.MSB = (ushort)(m0 + 4 * m1);
+                    int l0 = bestsolns[0].selectorLSB, l1 = bestsolns[1].selectorLSB;
+                    l0 = (l0 & 0xC0) * 64 + (l0 & 0x30) * 16 + (l0 & 0xC) * 4 + (l0 & 0x3);
+                    l1 = (l1 & 0xC0) * 64 + (l1 & 0x30) * 16 + (l1 & 0xC) * 4 + (l1 & 0x3);
+                    blk.LSB = (ushort)(l0 + 4 * l1);
+                }
+                else
+                {
+                    blk.MSB = (ushort)(bestsolns[0].selectorMSB + 256 * bestsolns[1].selectorMSB);
+                    blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
+                }
                 return blk;
 
             }
