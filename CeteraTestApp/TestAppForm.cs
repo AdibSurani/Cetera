@@ -146,7 +146,11 @@ namespace CeteraTestApp
             AllowDrop = true;
             DragEnter += (s, e) => e.Effect = DragDropEffects.Copy;
             DragDrop += (s, e) => TestFile(((string[])e.Data.GetData(DataFormats.FileDrop)).First());
+            Load += DoEverythingElse;
+        }
 
+        public void DoEverythingElse(object sender, EventArgs e)
+        {
             //var fnt = new BCFNT(File.OpenRead(@"C:\Users\Adib\Desktop\pikachu.bcfnt"));
             //int k = 1;
 
