@@ -63,6 +63,11 @@ namespace Cetera.Image
             public static RGB Average(IEnumerable<RGB> src) => new RGB((int)src.Average(c => c.R), (int)src.Average(c => c.G), (int)src.Average(c => c.B));
             public RGB Scale(int limit) => limit == 16 ? new RGB(R * 17, G * 17, B * 17) : new RGB((R << 3) | (R >> 2), (G << 3) | (G >> 2), (B << 3) | (B >> 2));
             public RGB Unscale(int limit) => new RGB(R * limit / 256, G * limit / 256, B * limit / 256);
+
+            public override int GetHashCode() => R | (G << 8) | (B << 16);
+            public override bool Equals(object obj) => GetHashCode() == obj.GetHashCode();
+            public static bool operator ==(RGB c1, RGB c2) => c1.Equals(c2);
+            public static bool operator !=(RGB c1, RGB c2) => !c1.Equals(c2);
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
