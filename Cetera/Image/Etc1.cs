@@ -314,10 +314,10 @@ namespace Cetera.Image
                             let table = inverseLookup[i]
                             let error = ErrorRGB(r >> 8, g >> 8, b >> 8)
                             let blockColour = new RGB(r, g, b)
-                            select new Solution { error = error, blockColour = blockColour, selectorMSB = (byte)i })
+                            select new Solution { error = (error << 8) | i, blockColour = blockColour })
                             .MinBy(s => s.error);
 
-                int val = soln.selectorMSB;
+                int val = (byte)soln.error;
                 int multiplier = (val & 32) == 32 ? 8 : 17;
                 return new Block
                 {

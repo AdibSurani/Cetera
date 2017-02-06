@@ -156,7 +156,7 @@ namespace CeteraTestApp
 
             //TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
             //TestFile(@"C:\dqmrs3\Images&Menus\Layout\Menu\Upper_menu.arc\extracted\timg\txt_item.bclim");
-            //TestFile(@"C:\Users\Adib\Desktop\flyer.bclim");
+            TestFile(@"C:\Users\Adib\Desktop\flyer.bclim");
             //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
             //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
             //TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
@@ -178,6 +178,7 @@ namespace CeteraTestApp
             //    BackgroundImage = bmp;
             //}
 
+            //BackgroundImage = Image.FromFile(@"C:\dbbp\images\Demo_Op_Layout_Op04_cut4_flyerNew.png");
             var settings = new Settings { Format = Format.ETC1A4 };
             var stp = Stopwatch.StartNew();
             var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
