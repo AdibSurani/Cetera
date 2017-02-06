@@ -249,28 +249,9 @@ namespace Cetera.Image
             {
                 foreach (var c in colors)
                 {
-                    var soln = new Solution { blockColour = c, intenTable = intenTable };
-                    var newTable = new RGB[4];
-                    var scaledColor = c.Scale(limit);
-                    int i;
-                    for (i = 0; i < 4; i++)
-                        newTable[i] = scaledColor + intenTable[i];
-
-                    for (i = 0; i < 8; i++)
-                    {
-                        int j;
-                        for (j = 0; j < 4; j++)
-                        {
-                            if (pixels[i] - newTable[j] == 0) break;
-                        }
-                        if (j == 4) break;
-                        soln.selectorMSB |= (byte)(j / 2 << i);
-                        soln.selectorLSB |= (byte)(j % 2 << i);
-                    }
-                    if (i == 8)
-                    {
-                        yield return soln;
-                    }
+                    best_soln = new Solution { error = 1 };
+                    if (EvaluateSolution(c, intenTable))
+                        yield return best_soln;
                 }
             }
 
@@ -347,101 +328,122 @@ namespace Cetera.Image
                 };
             }
 
-            static byte[][] lookup16 = modifiers.Select(t => (from a in Enumerable.Range(0, 16) from m in t select (byte)Clamp(17 * a + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
-            static byte[][] lookup32 = modifiers.Select(t => (from a in Enumerable.Range(0, 32) from m in t select (byte)Clamp(a * 8 + a / 4 + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
+            //static byte[][] lookup16 = modifiers.Select(t => (from a in Enumerable.Range(0, 16) from m in t select (byte)Clamp(17 * a + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
+            //static byte[][] lookup32 = modifiers.Select(t => (from a in Enumerable.Range(0, 32) from m in t select (byte)Clamp(a * 8 + a / 4 + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
+            static bool[][] lookup16 = new bool[8][];
+            static bool[][] lookup32 = new bool[8][];
+            static byte[][][] lookup16big = new byte[8][][];
+            static byte[][][] lookup32big = new byte[8][][];
+            static Optimizer()
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    lookup16[i] = new bool[256];
+                    lookup32[i] = new bool[256];
+                    lookup16big[i] = new byte[16][];
+                    lookup32big[i] = new byte[32][];
+                    for (int j = 0; j < 16; j++)
+                    {
+                        lookup16big[i][j] = modifiers[i].Select(mod => (byte)Clamp(j * 17 + mod)).Distinct().ToArray();
+                        foreach (var k in lookup16big[i][j]) lookup16[i][k] = true;
+                    }
+                    for (int j = 0; j < 32; j++)
+                    {
+                        lookup32big[i][j] = modifiers[i].Select(mod => (byte)Clamp(j * 8 + j / 4 + mod)).Distinct().ToArray();
+                        foreach (var k in lookup32big[i][j]) lookup32[i][k] = true;
+                    }
+                }
+            }
 
             static Block? Check(List<RGB> colors)
             {
                 foreach (var flip in new[] { false, true })
                 {
                     var allpixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
-                    var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
-                    var pixels0 = allpixels0.Distinct();
-                    var pixels1 = allpixels1.Distinct();
+                    var pixels0 = allpixels0.Distinct().ToArray();
                     if (pixels0.Count() > 4) continue;
+
+                    var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    var pixels1 = allpixels1.Distinct().ToArray();
                     if (pixels1.Count() > 4) continue;
 
                     foreach (var diff in new[] { false, true })
                     {
                         if (!diff)
                         {
-                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup16[i].Contains)).ToList();
+                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.All(c => lookup16[i][c.R] && lookup16[i][c.G] && lookup16[i][c.B])).ToList();
                             if (!tables0.Any()) continue;
-                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup16[i].Contains)).ToList();
+                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.All(c => lookup16[i][c.R] && lookup16[i][c.G] && lookup16[i][c.B])).ToList();
                             if (!tables1.Any()) continue;
-                            //return PackSolidColor(new RGB(0, 255, 0));
 
                             var opt0 = new Optimizer(allpixels0, 16, 1);
+                            Solution soln0 = null;
                             foreach (var ti in tables0)
                             {
-                                var t = modifiers[ti];
-                                var rs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.R).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var gs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.G).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var bs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.B).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var match = opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t).FirstOrDefault();
-                                if (match == null) continue;
-                                opt0.best_soln = match;
+                                var rs = Enumerable.Range(0, 16).Where(a => pixels0.All(c => lookup16big[ti][a].Contains(c.R))).ToArray();
+                                var gs = Enumerable.Range(0, 16).Where(a => pixels0.All(c => lookup16big[ti][a].Contains(c.G))).ToArray();
+                                var bs = Enumerable.Range(0, 16).Where(a => pixels0.All(c => lookup16big[ti][a].Contains(c.B))).ToArray();
+                                soln0 = opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
+                                if (soln0 != null) break;
                             }
-                            if (opt0.best_soln.error != 0) continue;
+                            if (soln0 == null) continue;
 
                             var opt1 = new Optimizer(allpixels1, 16, 1);
+                            Solution soln1 = null;
                             foreach (var ti in tables1)
                             {
-                                var t = modifiers[ti];
-                                var rs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.R).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var gs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.G).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var bs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.B).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
-                                var match = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t).FirstOrDefault();
-                                if (match == null) continue;
-                                opt1.best_soln = match;
+                                var rs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.R))).ToArray();
+                                var gs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.G))).ToArray();
+                                var bs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.B))).ToArray();
+                                soln1 = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
+                                if (soln1 != null) break;
                             }
-                            if (opt1.best_soln.error != 0) continue;
-                            return FromSet(new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln));
+                            if (soln1 == null) continue;
+                            return FromSet(new SolutionSet(flip, diff, soln0, soln1));
                         }
                         else
                         {
-                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup32[i].Contains)).ToList();
+                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.All(c => lookup32[i][c.R] && lookup32[i][c.G] && lookup32[i][c.B])).ToList();
                             if (!tables0.Any()) continue;
-                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup32[i].Contains)).ToList();
+                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.All(c => lookup32[i][c.R] && lookup32[i][c.G] && lookup32[i][c.B])).ToList();
                             if (!tables1.Any()) continue;
-                            //return PackSolidColor(new RGB(255, 0, 0));
 
                             var opt0 = new Optimizer(allpixels0, 32, 1);
                             var solns0 = new List<Solution>();
                             foreach (var ti in tables0)
                             {
-                                var t = modifiers[ti];
-                                var rs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.R).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                var gs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.G).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                var bs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.B).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                solns0.AddRange(opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t));
+                                var rs = Enumerable.Range(0, 32).Where(a => pixels0.All(c => lookup32big[ti][a].Contains(c.R))).ToArray();
+                                var gs = Enumerable.Range(0, 32).Where(a => pixels0.All(c => lookup32big[ti][a].Contains(c.G))).ToArray();
+                                var bs = Enumerable.Range(0, 32).Where(a => pixels0.All(c => lookup32big[ti][a].Contains(c.B))).ToArray();
+                                solns0.AddRange(opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]));
                             }
                             if (!solns0.Any()) continue;
 
                             var opt1 = new Optimizer(allpixels1, 32, 1);
-                            var solns1 = new List<Solution>();
                             foreach (var ti in tables1)
                             {
-                                var t = modifiers[ti];
-                                var rs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.R).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                var gs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.G).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                var bs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.B).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
-                                solns1.AddRange(opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t));
+                                var rs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.R))).ToArray();
+                                var gs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.G))).ToArray();
+                                var bs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.B))).ToArray();
+                                foreach (var s0 in solns0)
+                                {
+                                    var q = (from r in rs
+                                             let dr = r - s0.blockColour.R
+                                             where dr >= -4 && dr < 4
+                                             from g in gs
+                                             let dg = g - s0.blockColour.G
+                                             where dg >= -4 && dg < 4
+                                             from b in bs
+                                             let db = b - s0.blockColour.B
+                                             where db >= -4 && db < 4
+                                             select new RGB(r, g, b));
+                                    var soln1 = opt1.FindExactMatches(q, modifiers[ti]).FirstOrDefault();
+                                    if (soln1 != null)
+                                    {
+                                        return FromSet(new SolutionSet(flip, diff, s0, soln1));
+                                    }
+                                }
                             }
-                            if (!solns1.Any()) continue;
-
-                            var pairs = (from s0 in solns0
-                                         from s1 in solns1
-                                         where s1.blockColour.R - s0.blockColour.R >= -4
-                                         where s1.blockColour.R - s0.blockColour.R <= 3
-                                         where s1.blockColour.G - s0.blockColour.G >= -4
-                                         where s1.blockColour.G - s0.blockColour.G <= 3
-                                         where s1.blockColour.B - s0.blockColour.B >= -4
-                                         where s1.blockColour.B - s0.blockColour.B <= 3
-                                         select new SolutionSet(flip, diff, s0, s1));
-                            var match = pairs.FirstOrDefault();
-                            //return PackSolidColor(new RGB(255, 0, 0));
-                            if (match != null) return FromSet(match);
                         }
                     }
 
