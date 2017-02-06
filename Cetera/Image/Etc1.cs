@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -28,8 +29,9 @@ namespace Cetera.Image
         }
     }
 
-    class Etc1
+    public class Etc1
     {
+        public static int WorstErrorEver = 0;
         static readonly int[] order3ds = { 0, 4, 1, 5, 8, 12, 9, 13, 2, 6, 3, 7, 10, 14, 11, 15 };
 
         static int[][] modifiers =
@@ -44,6 +46,7 @@ namespace Cetera.Image
             new[] { 47, 183, -47, -183 }
         };
 
+        [DebuggerDisplay("{R},{G},{B}")]
         public struct RGB
         {
             public byte R, G, B, padding; // padding for speed reasons
@@ -230,18 +233,51 @@ namespace Cetera.Image
 
             bool ComputeDeltas(params int[] deltas)
             {
-                var q = (from zd in deltas
-                         let z = zd + baseColor.B
-                         where z >= 0 && z < limit
-                         from yd in deltas
-                         let y = yd + baseColor.G
-                         where y >= 0 && y < limit
-                         from xd in deltas
-                         let x = xd + baseColor.R
-                         where x >= 0 && x < limit
-                         select new RGB(x, y, z).Scale(limit));
+                return TestUnscaledColors(from zd in deltas
+                                          let z = zd + baseColor.B
+                                          where z >= 0 && z < limit
+                                          from yd in deltas
+                                          let y = yd + baseColor.G
+                                          where y >= 0 && y < limit
+                                          from xd in deltas
+                                          let x = xd + baseColor.R
+                                          where x >= 0 && x < limit
+                                          select new RGB(x, y, z));
+            }
+
+            IEnumerable<Solution> FindExactMatches(IEnumerable<RGB> colors, int[] intenTable)
+            {
+                foreach (var c in colors)
+                {
+                    var soln = new Solution { blockColour = c, intenTable = intenTable };
+                    var newTable = new RGB[4];
+                    var scaledColor = c.Scale(limit);
+                    int i;
+                    for (i = 0; i < 4; i++)
+                        newTable[i] = scaledColor + intenTable[i];
+
+                    for (i = 0; i < 8; i++)
+                    {
+                        int j;
+                        for (j = 0; j < 4; j++)
+                        {
+                            if (pixels[i] - newTable[j] == 0) break;
+                        }
+                        if (j == 4) break;
+                        soln.selectorMSB |= (byte)(j / 2 << i);
+                        soln.selectorLSB |= (byte)(j % 2 << i);
+                    }
+                    if (i == 8)
+                    {
+                        yield return soln;
+                    }
+                }
+            }
+
+            bool TestUnscaledColors(IEnumerable<RGB> colors)
+            {
                 bool success = false;
-                foreach (var c in q)
+                foreach (var c in colors)
                 {
                     foreach (var t in modifiers)
                     {
@@ -255,10 +291,11 @@ namespace Cetera.Image
                 return success;
             }
 
-            bool EvaluateSolution(RGB scaledColor, int[] intenTable)
+            bool EvaluateSolution(RGB c, int[] intenTable)
             {
-                var soln = new Solution { blockColour = scaledColor, intenTable = intenTable };
+                var soln = new Solution { blockColour = c, intenTable = intenTable };
                 var newTable = new RGB[4];
+                var scaledColor = c.Scale(limit);
                 for (int i = 0; i < 4; i++)
                     newTable[i] = scaledColor + intenTable[i];
 
@@ -310,50 +347,111 @@ namespace Cetera.Image
                 };
             }
 
-            public static Block Encode(List<RGB> colors)
-            {
-                if (colors.Distinct().Count() == 1)
-                {
-                    return PackSolidColor(colors[0]);
-                }
+            static byte[][] lookup16 = modifiers.Select(t => (from a in Enumerable.Range(0, 16) from m in t select (byte)Clamp(17 * a + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
+            static byte[][] lookup32 = modifiers.Select(t => (from a in Enumerable.Range(0, 32) from m in t select (byte)Clamp(a * 8 + a / 4 + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
 
-                var bestsolns = new SolutionSet();
+            static Block? Check(List<RGB> colors)
+            {
                 foreach (var flip in new[] { false, true })
                 {
-                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
-                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    var allpixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
+                    var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    var pixels0 = allpixels0.Distinct();
+                    var pixels1 = allpixels1.Distinct();
+                    if (pixels0.Count() > 4) continue;
+                    if (pixels1.Count() > 4) continue;
+
                     foreach (var diff in new[] { false, true })
                     {
-                        int limit = diff ? 32 : 16;
-                        var opt0 = new Optimizer(pixels0, limit, bestsolns.total_error);
-                        if (!opt0.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
-                            continue;
-                        if (opt0.best_soln.error > 9000)
+                        if (!diff)
                         {
-                            opt0.baseColor = opt0.best_soln.blockColour.Unscale(limit);
-                            opt0.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
+                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup16[i].Contains)).ToList();
+                            if (!tables0.Any()) continue;
+                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup16[i].Contains)).ToList();
+                            if (!tables1.Any()) continue;
+                            //return PackSolidColor(new RGB(0, 255, 0));
+
+                            var opt0 = new Optimizer(allpixels0, 16, 1);
+                            foreach (var ti in tables0)
+                            {
+                                var t = modifiers[ti];
+                                var rs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.R).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var gs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.G).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var bs = Enumerable.Range(0, 16).Where(a => pixels0.Select(c => c.B).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var match = opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t).FirstOrDefault();
+                                if (match == null) continue;
+                                opt0.best_soln = match;
+                            }
+                            if (opt0.best_soln.error != 0) continue;
+
+                            var opt1 = new Optimizer(allpixels1, 16, 1);
+                            foreach (var ti in tables1)
+                            {
+                                var t = modifiers[ti];
+                                var rs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.R).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var gs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.G).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var bs = Enumerable.Range(0, 16).Where(a => pixels1.Select(c => c.B).All(z => t.Any(m => Clamp(17 * a + m) == z))).ToList();
+                                var match = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t).FirstOrDefault();
+                                if (match == null) continue;
+                                opt1.best_soln = match;
+                            }
+                            if (opt1.best_soln.error != 0) continue;
+                            return FromSet(new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln));
                         }
-
-                        if (opt0.best_soln.error >= bestsolns.total_error)
-                            continue;
-
-                        var opt1 = new Optimizer(pixels1, limit, bestsolns.total_error - opt0.best_soln.error);
-                        if (diff) opt1.baseColor = opt0.best_soln.blockColour.Unscale(limit);
-                        if (!opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
-                            continue;
-                        if (!diff && opt1.best_soln.error > 9000)
+                        else
                         {
-                            opt0.baseColor = opt0.best_soln.blockColour.Unscale(limit);
-                            opt1.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
+                            var tables0 = Enumerable.Range(0, 8).Where(i => pixels0.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup32[i].Contains)).ToList();
+                            if (!tables0.Any()) continue;
+                            var tables1 = Enumerable.Range(0, 8).Where(i => pixels1.SelectMany(c => new[] { c.R, c.G, c.B }).All(lookup32[i].Contains)).ToList();
+                            if (!tables1.Any()) continue;
+                            //return PackSolidColor(new RGB(255, 0, 0));
+
+                            var opt0 = new Optimizer(allpixels0, 32, 1);
+                            var solns0 = new List<Solution>();
+                            foreach (var ti in tables0)
+                            {
+                                var t = modifiers[ti];
+                                var rs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.R).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                var gs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.G).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                var bs = Enumerable.Range(0, 32).Where(a => pixels0.Select(c => c.B).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                solns0.AddRange(opt0.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t));
+                            }
+                            if (!solns0.Any()) continue;
+
+                            var opt1 = new Optimizer(allpixels1, 32, 1);
+                            var solns1 = new List<Solution>();
+                            foreach (var ti in tables1)
+                            {
+                                var t = modifiers[ti];
+                                var rs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.R).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                var gs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.G).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                var bs = Enumerable.Range(0, 32).Where(a => pixels1.Select(c => c.B).All(z => t.Any(m => Clamp(a * 8 + a / 4 + m) == z))).ToList();
+                                solns1.AddRange(opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), t));
+                            }
+                            if (!solns1.Any()) continue;
+
+                            var pairs = (from s0 in solns0
+                                         from s1 in solns1
+                                         where s1.blockColour.R - s0.blockColour.R >= -4
+                                         where s1.blockColour.R - s0.blockColour.R <= 3
+                                         where s1.blockColour.G - s0.blockColour.G >= -4
+                                         where s1.blockColour.G - s0.blockColour.G <= 3
+                                         where s1.blockColour.B - s0.blockColour.B >= -4
+                                         where s1.blockColour.B - s0.blockColour.B <= 3
+                                         select new SolutionSet(flip, diff, s0, s1));
+                            var match = pairs.FirstOrDefault();
+                            //return PackSolidColor(new RGB(255, 0, 0));
+                            if (match != null) return FromSet(match);
                         }
-
-                        var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
-                        if (solnset.total_error < bestsolns.total_error)
-                            bestsolns = solnset;
-
                     }
-                }
 
+                }
+                //return (pixels0.Distinct().Count() <= 4 && pixels0.Distinct().Count() <= 4);
+                return null;
+            }
+
+            static Block FromSet(SolutionSet bestsolns)
+            {
                 var blk = new Block
                 {
                     DiffBit = bestsolns.diff,
@@ -379,8 +477,8 @@ namespace Cetera.Image
                     blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
                 }
 
-                var c0 = bestsolns[0].blockColour.Unscale(blk.DiffBit ? 32 : 16);
-                var c1 = bestsolns[1].blockColour.Unscale(blk.DiffBit ? 32 : 16);
+                var c0 = bestsolns[0].blockColour;
+                var c1 = bestsolns[1].blockColour;
                 if (blk.DiffBit)
                 {
                     int rdiff = (c1.R - c0.R + 8) % 8;
@@ -398,6 +496,75 @@ namespace Cetera.Image
                 }
 
                 return blk;
+            }
+
+            public static Block Encode(List<RGB> colors)
+            {
+                var chk = Check(colors);
+                if (chk != null) return chk.Value;
+                return PackSolidColor(new RGB(255, 255, 255));
+
+                if (colors.Distinct().Count() == 1)
+                {
+                    return PackSolidColor(colors[0]);
+                }
+
+                var bestsolns = new SolutionSet();
+                foreach (var flip in new[] { false, true })
+                {
+                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
+                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    foreach (var diff in new[] { false, true }) // let's again just assume no diff
+                    {
+                        int limit = diff ? 32 : 16;
+                        Func<IEnumerable<byte>, List<int>> GetColors = src =>
+                            (from n in Enumerable.Range(0, limit)
+                             let n2 = diff ? (n << 3) | (n >> 2) : n * 17
+                             from t in modifiers
+                             orderby src.Sum(ch => t.Select(mod => Clamp(n2 + mod)).Min(m => Square(m - ch)))
+                             select n)
+                             .Distinct().Take(8).ToList();
+                        var rs = GetColors(pixels0.Select(c => c.R));
+                        var gs = GetColors(pixels0.Select(c => c.G));
+                        var bs = GetColors(pixels0.Select(c => c.B));
+
+                        var opt0 = new Optimizer(pixels0, limit, bestsolns.total_error);
+                        if (!opt0.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b)))
+                            continue;
+                        if (opt0.best_soln.error >= bestsolns.total_error)
+                            continue;
+
+                        var opt1 = new Optimizer(pixels1, limit, bestsolns.total_error - opt0.best_soln.error);
+                        if (diff)
+                        {
+                            opt1.baseColor = opt0.best_soln.blockColour;
+                            if (!opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
+                                continue;
+                        }
+                        else
+                        {
+                            rs = GetColors(pixels1.Select(c => c.R));
+                            gs = GetColors(pixels1.Select(c => c.G));
+                            bs = GetColors(pixels1.Select(c => c.B));
+                            if (!opt1.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b)))
+                                continue;
+                        }
+
+                        var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
+                        if (solnset.total_error < bestsolns.total_error)
+                            bestsolns = solnset;
+
+                    }
+                }
+                // 37914
+                if (bestsolns.total_error == 29366)
+                {
+                    var s = string.Join(";", colors.Select(x => $"{x.R},{x.G},{x.B}"));
+                    System.Windows.Forms.MessageBox.Show(s);
+                }
+                WorstErrorEver = Math.Max(WorstErrorEver, bestsolns.total_error);
+
+                return FromSet(bestsolns);
             }
         }
     }

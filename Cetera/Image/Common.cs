@@ -221,7 +221,7 @@ namespace Cetera.Image
                     int y = Clamp(point.Y, 0, bmp.Height - 1);
 
                     var color = bmp.GetPixel(x, y);
-                    if (color.A == 0) color = default(Color); // daigasso seems to need this
+                    //if (color.A == 0) color = default(Color); // daigasso seems to need this
 
                     switch (settings.Format)
                     {
