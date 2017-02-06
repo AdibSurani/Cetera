@@ -182,55 +182,80 @@ namespace Cetera.Image
 
             const int MAX_ERROR = 99999999;
 
-            public class SolutionSet : List<Solution>
+            class SolutionSet
             {
                 public SolutionSet()
                 {
-                    Add(new Solution { error = MAX_ERROR });
-                    Add(new Solution { error = MAX_ERROR });
+                    total_error = MAX_ERROR;
                 }
-                public bool flip;
-                public bool diff;
+
+                public SolutionSet(bool flip, bool diff, Solution soln0, Solution soln1)
+                {
+                    this.flip = flip;
+                    this.diff = diff;
+                    this.soln0 = soln0;
+                    this.soln1 = soln1;
+                    total_error = soln0.error + soln1.error;
+                }
+
+                public readonly bool flip;
+                public readonly bool diff;
+                public readonly int total_error;
+                public readonly Solution soln0;
+                public readonly Solution soln1;
+                public Solution this[int i] => i == 0 ? soln0 : soln1;
             }
 
-            public struct Solution
+            class Solution
             {
                 public int error;
                 public RGB blockColour;
                 public int[] intenTable;
-                public byte selectorMSB;
-                public byte selectorLSB;
+                public int selectorMSB;
+                public int selectorLSB;
             }
 
             List<RGB> pixels;
             public RGB baseColor;
             int limit;
+            Solution best_soln;
 
-            public Optimizer(IEnumerable<RGB> pixels, int limit)
+            Optimizer(IEnumerable<RGB> pixels, int limit, int error)
             {
                 this.pixels = pixels.ToList();
                 this.limit = limit;
                 baseColor = RGB.Average(pixels).Unscale(limit);
+                best_soln = new Solution { error = error };
             }
 
-            public Solution Compute(params int[] deltas)
+            bool ComputeDeltas(params int[] deltas)
             {
-                return (from zd in deltas
-                        let z = zd + baseColor.B
-                        where z >= 0 && z < limit
-                        from yd in deltas
-                        let y = yd + baseColor.G
-                        where y >= 0 && y < limit
-                        from xd in deltas
-                        let x = xd + baseColor.R
-                        where x >= 0 && x < limit
-                        let c = new RGB(x, y, z).Scale(limit)
-                        from t in modifiers
-                        select EvaluateSolution(c, t))
-                        .MinBy(soln => soln.error);
+                var q = (from zd in deltas
+                         let z = zd + baseColor.B
+                         where z >= 0 && z < limit
+                         from yd in deltas
+                         let y = yd + baseColor.G
+                         where y >= 0 && y < limit
+                         from xd in deltas
+                         let x = xd + baseColor.R
+                         where x >= 0 && x < limit
+                         select new RGB(x, y, z).Scale(limit));
+                bool success = false;
+                foreach (var c in q)
+                {
+                    foreach (var t in modifiers)
+                    {
+                        if (EvaluateSolution(c, t))
+                        {
+                            success = true;
+                            if (best_soln.error == 0) return true;
+                        }
+                    }
+                }
+                return success;
             }
 
-            public Solution EvaluateSolution(RGB scaledColor, int[] intenTable)
+            bool EvaluateSolution(RGB scaledColor, int[] intenTable)
             {
                 var soln = new Solution { blockColour = scaledColor, intenTable = intenTable };
                 var newTable = new RGB[4];
@@ -250,10 +275,12 @@ namespace Cetera.Image
                         }
                     }
                     soln.error += best_error;
+                    if (soln.error >= best_soln.error) return false;
                     soln.selectorMSB |= (byte)(best_j / 2 << i);
                     soln.selectorLSB |= (byte)(best_j % 2 << i);
                 }
-                return soln;
+                best_soln = soln;
+                return true;
             }
 
             public static Block PackSolidColor(RGB c)
@@ -290,44 +317,40 @@ namespace Cetera.Image
                     return PackSolidColor(colors[0]);
                 }
 
-                SolutionSet bestsolns = null;
-                int best_error = MAX_ERROR;
+                var bestsolns = new SolutionSet();
                 foreach (var flip in new[] { false, true })
                 {
+                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
+                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
                     foreach (var diff in new[] { false, true })
                     {
-                        var solns = new SolutionSet { diff = diff, flip = flip };
-                        for (int i = 0; i < 2; i++)
+                        int limit = diff ? 32 : 16;
+                        var opt0 = new Optimizer(pixels0, limit, bestsolns.total_error);
+                        if (!opt0.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
+                            continue;
+                        if (opt0.best_soln.error > 9000)
                         {
-                            var optimizer = new Optimizer(colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i), diff ? 32 : 16);
-                            if (i == 1 && diff)
-                            {
-                                optimizer.baseColor = solns[0].blockColour.Unscale(32);
-                                solns[1] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
-                            }
-                            else
-                            {
-                                solns[i] = optimizer.Compute(-4, -3, -2, -1, 0, 1, 2, 3);
-
-                                // this threshold was set arbitrarily
-                                if (solns[i].error > 9000)
-                                {
-                                    var refine = optimizer.Compute(-8, -7, -6, -5, 4, 5, 6, 7);
-
-                                    if (refine.error < solns[i].error)
-                                        solns[i] = refine;
-                                }
-                            }
-
-                            if (solns[i].error >= best_error) break;
+                            opt0.baseColor = opt0.best_soln.blockColour.Unscale(limit);
+                            opt0.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
                         }
 
-                        int sum = solns[0].error + solns[1].error;
-                        if (sum < best_error)
+                        if (opt0.best_soln.error >= bestsolns.total_error)
+                            continue;
+
+                        var opt1 = new Optimizer(pixels1, limit, bestsolns.total_error - opt0.best_soln.error);
+                        if (diff) opt1.baseColor = opt0.best_soln.blockColour.Unscale(limit);
+                        if (!opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
+                            continue;
+                        if (!diff && opt1.best_soln.error > 9000)
                         {
-                            best_error = sum;
-                            bestsolns = solns;
+                            opt0.baseColor = opt0.best_soln.blockColour.Unscale(limit);
+                            opt1.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
                         }
+
+                        var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
+                        if (solnset.total_error < bestsolns.total_error)
+                            bestsolns = solnset;
+
                     }
                 }
 
@@ -338,6 +361,23 @@ namespace Cetera.Image
                     Table0 = Array.IndexOf(modifiers, bestsolns[0].intenTable),
                     Table1 = Array.IndexOf(modifiers, bestsolns[1].intenTable)
                 };
+
+                if (blk.FlipBit)
+                {
+                    int m0 = bestsolns[0].selectorMSB, m1 = bestsolns[1].selectorMSB;
+                    m0 = (m0 & 0xC0) * 64 + (m0 & 0x30) * 16 + (m0 & 0xC) * 4 + (m0 & 0x3);
+                    m1 = (m1 & 0xC0) * 64 + (m1 & 0x30) * 16 + (m1 & 0xC) * 4 + (m1 & 0x3);
+                    blk.MSB = (ushort)(m0 + 4 * m1);
+                    int l0 = bestsolns[0].selectorLSB, l1 = bestsolns[1].selectorLSB;
+                    l0 = (l0 & 0xC0) * 64 + (l0 & 0x30) * 16 + (l0 & 0xC) * 4 + (l0 & 0x3);
+                    l1 = (l1 & 0xC0) * 64 + (l1 & 0x30) * 16 + (l1 & 0xC) * 4 + (l1 & 0x3);
+                    blk.LSB = (ushort)(l0 + 4 * l1);
+                }
+                else
+                {
+                    blk.MSB = (ushort)(bestsolns[0].selectorMSB + 256 * bestsolns[1].selectorMSB);
+                    blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
+                }
 
                 var c0 = bestsolns[0].blockColour.Unscale(blk.DiffBit ? 32 : 16);
                 var c1 = bestsolns[1].blockColour.Unscale(blk.DiffBit ? 32 : 16);
@@ -357,24 +397,7 @@ namespace Cetera.Image
                     blk.B = (byte)(c0.B * 16 + c1.B);
                 }
 
-                if (blk.FlipBit)
-                {
-                    int m0 = bestsolns[0].selectorMSB, m1 = bestsolns[1].selectorMSB;
-                    m0 = (m0 & 0xC0) * 64 + (m0 & 0x30) * 16 + (m0 & 0xC) * 4 + (m0 & 0x3);
-                    m1 = (m1 & 0xC0) * 64 + (m1 & 0x30) * 16 + (m1 & 0xC) * 4 + (m1 & 0x3);
-                    blk.MSB = (ushort)(m0 + 4 * m1);
-                    int l0 = bestsolns[0].selectorLSB, l1 = bestsolns[1].selectorLSB;
-                    l0 = (l0 & 0xC0) * 64 + (l0 & 0x30) * 16 + (l0 & 0xC) * 4 + (l0 & 0x3);
-                    l1 = (l1 & 0xC0) * 64 + (l1 & 0x30) * 16 + (l1 & 0xC) * 4 + (l1 & 0x3);
-                    blk.LSB = (ushort)(l0 + 4 * l1);
-                }
-                else
-                {
-                    blk.MSB = (ushort)(bestsolns[0].selectorMSB + 256 * bestsolns[1].selectorMSB);
-                    blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
-                }
                 return blk;
-
             }
         }
     }
