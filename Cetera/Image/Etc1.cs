@@ -182,10 +182,10 @@ namespace Cetera.Image
                                               return (Math.Abs(Clamp(c + selector) - color) << 8) | packed_c;
                                           })).ToArray();
 
-            const int MAX_ERROR = 99999999;
-
             class SolutionSet
             {
+                const int MAX_ERROR = 99999999;
+
                 public SolutionSet()
                 {
                     total_error = MAX_ERROR;
@@ -217,14 +217,14 @@ namespace Cetera.Image
                 public int selectorLSB;
             }
 
-            List<RGB> pixels;
+            RGB[] pixels;
             public RGB baseColor;
             int limit;
             Solution best_soln;
 
-            Optimizer(IEnumerable<RGB> pixels, int limit, int error)
+            Optimizer(RGB[] pixels, int limit, int error)
             {
-                this.pixels = pixels.ToList();
+                this.pixels = pixels;
                 this.limit = limit;
                 baseColor = RGB.Average(pixels).Unscale(limit);
                 best_soln = new Solution { error = error };
@@ -248,7 +248,7 @@ namespace Cetera.Image
             {
                 foreach (var c in colors)
                 {
-                    best_soln = new Solution { error = 1 };
+                    best_soln.error = 1;
                     if (EvaluateSolution(c, intenTable))
                         yield return best_soln;
                 }
@@ -281,7 +281,7 @@ namespace Cetera.Image
 
                 for (int i = 0; i < 8; i++)
                 {
-                    int best_j = 0, best_error = MAX_ERROR;
+                    int best_j = 0, best_error = int.MaxValue;
                     for (int j = 0; j < 4; j++)
                     {
                         int error = pixels[i] - newTable[j];
@@ -356,11 +356,11 @@ namespace Cetera.Image
             {
                 foreach (var flip in new[] { false, true })
                 {
-                    var allpixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
+                    var allpixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0).ToArray();
                     var pixels0 = allpixels0.Distinct().ToArray();
                     if (pixels0.Count() > 4) continue;
 
-                    var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1).ToArray();
                     var pixels1 = allpixels1.Distinct().ToArray();
                     if (pixels1.Count() > 4) continue;
 
@@ -505,28 +505,35 @@ namespace Cetera.Image
                 if (recompressedBlock != null)
                     return recompressedBlock.Value;
 
+                // regular case: just try our best to compress and minimise error
                 var bestsolns = new SolutionSet();
                 foreach (var flip in new[] { false, true })
                 {
-                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0);
-                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1);
+                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0).ToArray();
+                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1).ToArray();
                     foreach (var diff in new[] { false, true }) // let's again just assume no diff
                     {
                         int limit = diff ? 32 : 16;
-                        Func<IEnumerable<byte>, List<int>> GetColors = src =>
+                        Func<IEnumerable<byte>, int[]> GetColors = src =>
                             (from n in Enumerable.Range(0, limit)
                              let n2 = diff ? (n << 3) | (n >> 2) : n * 17
                              from t in modifiers
                              orderby src.Sum(ch => t.Select(mod => Clamp(n2 + mod)).Min(m => Square(m - ch)))
                              select n)
-                             .Distinct().Take(8).ToList();
+                             .Distinct().Take(4).ToArray();
                         var rs = GetColors(pixels0.Select(c => c.R));
                         var gs = GetColors(pixels0.Select(c => c.G));
                         var bs = GetColors(pixels0.Select(c => c.B));
 
                         var opt0 = new Optimizer(pixels0, limit, bestsolns.total_error);
-                        if (!opt0.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b)))
+                        if (!opt0.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b))
+                            & !opt0.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) // intentional & rather than &&
                             continue;
+                        if (opt0.best_soln.error > 9000)
+                        {
+                            opt0.baseColor = opt0.best_soln.blockColour;
+                            opt0.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
+                        }
                         if (opt0.best_soln.error >= bestsolns.total_error)
                             continue;
 
@@ -542,8 +549,14 @@ namespace Cetera.Image
                             rs = GetColors(pixels1.Select(c => c.R));
                             gs = GetColors(pixels1.Select(c => c.G));
                             bs = GetColors(pixels1.Select(c => c.B));
-                            if (!opt1.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b)))
+                            if (!opt1.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b))
+                                & !opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) // intentional & rather than &&
                                 continue;
+                            if (opt1.best_soln.error > 9000)
+                            {
+                                opt1.baseColor = opt0.best_soln.blockColour;
+                                opt1.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
+                            }
                         }
 
                         var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
