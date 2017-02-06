@@ -159,7 +159,7 @@ namespace CeteraTestApp
             //TestFile(@"C:\Users\Adib\Desktop\flyer.bclim");
             //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
             //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
-            TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
+            //TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
             //TestXFFont(@"C:\Users\Adib\Downloads\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\Users\Adib\Desktop\ms_normal.bclyt");
             //TestDaigasso();
@@ -179,12 +179,14 @@ namespace CeteraTestApp
             //}
 
             var settings = new Settings { Format = Format.ETC1A4 };
-            var stp = System.Diagnostics.Stopwatch.StartNew();
+            var stp = Stopwatch.StartNew();
             var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
             Text = stp.Elapsed.ToString();
             stp.Restart();
             BackgroundImage = Common.Load(tmp1, settings);
+            //BackgroundImage.Save(@"C:\Users\Adib\Desktop\blergh123.png");
             label1.Text = stp.Elapsed.ToString();
+            //label1.Text = Etc1.WorstErrorEver.ToString();
 
             return;
 

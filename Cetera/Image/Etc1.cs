@@ -31,7 +31,6 @@ namespace Cetera.Image
 
     public class Etc1
     {
-        public static int WorstErrorEver = 0;
         static readonly int[] order3ds = { 0, 4, 1, 5, 8, 12, 9, 13, 2, 6, 3, 7, 10, 14, 11, 15 };
 
         static int[][] modifiers =
@@ -328,8 +327,6 @@ namespace Cetera.Image
                 };
             }
 
-            //static byte[][] lookup16 = modifiers.Select(t => (from a in Enumerable.Range(0, 16) from m in t select (byte)Clamp(17 * a + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
-            //static byte[][] lookup32 = modifiers.Select(t => (from a in Enumerable.Range(0, 32) from m in t select (byte)Clamp(a * 8 + a / 4 + m)).OrderBy(x => x).Distinct().ToArray()).ToArray();
             static bool[][] lookup16 = new bool[8][];
             static bool[][] lookup32 = new bool[8][];
             static byte[][][] lookup16big = new byte[8][][];
@@ -355,7 +352,7 @@ namespace Cetera.Image
                 }
             }
 
-            static Block? Check(List<RGB> colors)
+            static Block? RepackEtc1CompressedBlock(List<RGB> colors)
             {
                 foreach (var flip in new[] { false, true })
                 {
@@ -396,10 +393,9 @@ namespace Cetera.Image
                                 var gs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.G))).ToArray();
                                 var bs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.B))).ToArray();
                                 soln1 = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
-                                if (soln1 != null) break;
+                                if (soln1 != null)
+                                    return FromSet(new SolutionSet(flip, diff, soln0, soln1));
                             }
-                            if (soln1 == null) continue;
-                            return FromSet(new SolutionSet(flip, diff, soln0, soln1));
                         }
                         else
                         {
@@ -425,30 +421,26 @@ namespace Cetera.Image
                                 var rs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.R))).ToArray();
                                 var gs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.G))).ToArray();
                                 var bs = Enumerable.Range(0, 32).Where(a => pixels1.All(c => lookup32big[ti][a].Contains(c.B))).ToArray();
-                                foreach (var s0 in solns0)
+                                foreach (var soln0 in solns0)
                                 {
                                     var q = (from r in rs
-                                             let dr = r - s0.blockColour.R
+                                             let dr = r - soln0.blockColour.R
                                              where dr >= -4 && dr < 4
                                              from g in gs
-                                             let dg = g - s0.blockColour.G
+                                             let dg = g - soln0.blockColour.G
                                              where dg >= -4 && dg < 4
                                              from b in bs
-                                             let db = b - s0.blockColour.B
+                                             let db = b - soln0.blockColour.B
                                              where db >= -4 && db < 4
                                              select new RGB(r, g, b));
                                     var soln1 = opt1.FindExactMatches(q, modifiers[ti]).FirstOrDefault();
                                     if (soln1 != null)
-                                    {
-                                        return FromSet(new SolutionSet(flip, diff, s0, soln1));
-                                    }
+                                        return FromSet(new SolutionSet(flip, diff, soln0, soln1));
                                 }
                             }
                         }
                     }
-
                 }
-                //return (pixels0.Distinct().Count() <= 4 && pixels0.Distinct().Count() <= 4);
                 return null;
             }
 
@@ -502,14 +494,16 @@ namespace Cetera.Image
 
             public static Block Encode(List<RGB> colors)
             {
-                var chk = Check(colors);
-                if (chk != null) return chk.Value;
-                return PackSolidColor(new RGB(255, 255, 255));
-
+                // special case 1: this block has all 16 pixels exactly the same color
                 if (colors.Distinct().Count() == 1)
                 {
                     return PackSolidColor(colors[0]);
                 }
+
+                // special case 2: this block was previously etc1-compressed
+                var recompressedBlock = RepackEtc1CompressedBlock(colors);
+                if (recompressedBlock != null)
+                    return recompressedBlock.Value;
 
                 var bestsolns = new SolutionSet();
                 foreach (var flip in new[] { false, true })
@@ -558,14 +552,6 @@ namespace Cetera.Image
 
                     }
                 }
-                // 37914
-                if (bestsolns.total_error == 29366)
-                {
-                    var s = string.Join(";", colors.Select(x => $"{x.R},{x.G},{x.B}"));
-                    System.Windows.Forms.MessageBox.Show(s);
-                }
-                WorstErrorEver = Math.Max(WorstErrorEver, bestsolns.total_error);
-
                 return FromSet(bestsolns);
             }
         }
