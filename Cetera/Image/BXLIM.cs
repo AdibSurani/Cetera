@@ -15,7 +15,7 @@ namespace Cetera.Image
             public short width;
             public short height;
             public Format format;
-            public Swizzle swizzle;
+            public Orientation orientation;
             public short unknown;
         }
 
@@ -26,7 +26,7 @@ namespace Cetera.Image
             public short height;
             public short unknown;
             public Format format;
-            public Swizzle swizzle;
+            public Orientation orientation;
         }
 
         public enum Format : byte
@@ -52,13 +52,13 @@ namespace Cetera.Image
                 {
                     case "CLIM":
                         var bclim = imagData.ToStruct<BCLIMImageHeader>();
-                        Settings = new Settings { Width = bclim.width, Height = bclim.height, Swizzle = bclim.swizzle };
+                        Settings = new Settings { Width = bclim.width, Height = bclim.height, Orientation = bclim.orientation };
                         Settings.SetFormat(bclim.format);
                         UnknownShort = bclim.unknown;
                         break;
                     case "FLIM":
                         var bflim = imagData.ToStruct<BFLIMImageHeader>();
-                        Settings = new Settings { Width = bflim.width, Height = bflim.height, Swizzle = bflim.swizzle };
+                        Settings = new Settings { Width = bflim.width, Height = bflim.height, Orientation = bflim.orientation };
                         Settings.SetFormat(bflim.format);
                         UnknownShort = bflim.unknown;
                         break;

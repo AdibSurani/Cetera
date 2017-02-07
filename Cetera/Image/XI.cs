@@ -28,7 +28,7 @@ namespace Cetera.Image
             public int const1; // 30 30 00 00
             public short const2; // 30 00
             public Format imageFormat;
-            public Swizzle swizzle; // always 01?
+            public Orientation orientation; // always 01?
             public byte combineFormat;
             public byte bitDepth;
             public short bytesPerTile;
@@ -58,7 +58,7 @@ namespace Cetera.Image
             using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
-                Settings = new Settings { Width = header.width, Height = header.height, Swizzle = header.swizzle, PadToPowerOf2 = false };
+                Settings = new Settings { Width = header.width, Height = header.height, Orientation = header.orientation, PadToPowerOf2 = false };
                 Settings.SetFormat(header.imageFormat);
                 CombineFormat = header.combineFormat;
 

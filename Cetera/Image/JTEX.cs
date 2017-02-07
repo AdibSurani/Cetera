@@ -17,7 +17,7 @@ namespace Cetera.Image
             public short width;
             public short height;
             public BXLIM.Format format;
-            public Swizzle swizzle;
+            public Orientation orientation;
             public short unk2;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 28)]
             public int[] unk3;

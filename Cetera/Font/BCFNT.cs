@@ -162,7 +162,7 @@ namespace Cetera.Font
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height * tglp.num_sheets;
                 var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                var settings = new Settings { Width = width, Height = height, Swizzle = Swizzle.Default };
+                var settings = new Settings { Width = width, Height = height, Orientation = Orientation.Default };
                 settings.SetFormat(tglp.sheet_image_format);
                 //var colors = Image.Common.GetColorsFromTexture(bytes, tglp.sheet_image_format);
                 bmp = Image.Common.Load(bytes, settings);

@@ -16,7 +16,7 @@ namespace Cetera.Image
         L4, A4, ETC1, ETC1A4
     }
 
-    public enum Swizzle : byte
+    public enum Orientation : byte
     {
         Default,
         TransposeTile = 1,
@@ -29,14 +29,14 @@ namespace Cetera.Image
         public int Width { get; set; }
         public int Height { get; set; }
         public Format Format { get; set; }
-        public Swizzle Swizzle { get; set; } = Swizzle.Default;
+        public Orientation Orientation { get; set; } = Orientation.Default;
         public bool PadToPowerOf2 { get; set; } = true;
 
         public int Stride
         {
             get
             {
-                int stride = (int)Swizzle < 4 ? Width : Height;
+                int stride = (int)Orientation < 4 ? Width : Height;
                 stride = (stride + 7) & ~7; // round up to multiple of 8
                 if (PadToPowerOf2) stride = 2 << (int)Math.Log(stride - 1, 2);
                 return stride;
@@ -54,7 +54,7 @@ namespace Cetera.Image
 
     public class Common
     {
-        static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
+        static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max - 1);
 
         static int PadDimension(int n, bool po2)
         {
@@ -148,7 +148,7 @@ namespace Cetera.Image
         {
             int strideWidth = PadDimension(settings.Width, settings.PadToPowerOf2);
             int strideHeight = PadDimension(settings.Height, settings.PadToPowerOf2);
-            int stride = (int)settings.Swizzle < 4 ? strideWidth : strideHeight;
+            int stride = (int)settings.Orientation < 4 ? strideWidth : strideHeight;
             for (int i = 0; i < strideWidth * strideHeight; i++)
             {
                 int x_out = (i / 64 % (stride / 8)) * 8;
@@ -156,22 +156,22 @@ namespace Cetera.Image
                 int x_in = (i / 4 & 4) | (i / 2 & 2) | (i & 1);
                 int y_in = (i / 8 & 4) | (i / 4 & 2) | (i / 2 & 1);
 
-                switch (settings.Swizzle)
+                switch (settings.Orientation)
                 {
-                    case Swizzle.Default:
+                    case Orientation.Default:
                         yield return new Point(x_out + x_in, y_out + y_in);
                         break;
-                    case Swizzle.TransposeTile:
+                    case Orientation.TransposeTile:
                         yield return new Point(x_out + y_in, y_out + x_in);
                         break;
-                    case Swizzle.Rotate90:
+                    case Orientation.Rotate90:
                         yield return new Point(y_out + y_in, stride - 1 - (x_out + x_in));
                         break;
-                    case Swizzle.Transpose:
+                    case Orientation.Transpose:
                         yield return new Point(y_out + y_in, x_out + x_in);
                         break;
                     default:
-                        throw new NotSupportedException($"Unknown swizzle format {settings.Swizzle}");
+                        throw new NotSupportedException($"Unknown orientation format {settings.Orientation}");
                 }
             }
         }
@@ -217,8 +217,8 @@ namespace Cetera.Image
             {
                 foreach (var point in points)
                 {
-                    int x = Clamp(point.X, 0, bmp.Width - 1);
-                    int y = Clamp(point.Y, 0, bmp.Height - 1);
+                    int x = Clamp(point.X, 0, bmp.Width);
+                    int y = Clamp(point.Y, 0, bmp.Height);
 
                     var color = bmp.GetPixel(x, y);
                     //if (color.A == 0) color = default(Color); // daigasso seems to need this
