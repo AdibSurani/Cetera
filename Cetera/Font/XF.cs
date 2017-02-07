@@ -80,7 +80,8 @@ namespace Cetera.Font
 
             var attr = new ImageAttributes();
             var matrix = Enumerable.Repeat(new float[5], 5).ToArray();
-            matrix[map.ColorChannel] = new[] { color.R / 255f, color.G / 255f, color.B / 255f, 1f, 0 };
+            matrix[map.ColorChannel] = new[] { 0, 0, 0, 1f, 0 };
+            matrix[4] = new[] { color.R / 255f, color.G / 255f, color.B / 255f, 0, 0 };
             attr.SetColorMatrix(new ColorMatrix(matrix));
 
             g.DrawImage(bmp,

@@ -64,13 +64,14 @@ namespace CeteraTestApp
         void TestXF(string fontpath, string str)
         {
             var xf = new XF(File.OpenRead(fontpath));
-            var test = new Bitmap(2000, 200);
+            var test = new Bitmap(800, 40);
             using (var g = Graphics.FromImage(test))
             {
+                g.FillRectangle(Brushes.Black, 0, 0, test.Width, test.Height);
                 float x = 5;
                 foreach (var c in str)
                 {
-                    x = xf.Draw(c, Color.Black, g, x, 5);
+                    x = xf.Draw(c, Color.White, g, x, 5);
                 }
             }
             BackgroundImage = test;
@@ -78,10 +79,10 @@ namespace CeteraTestApp
 
         void TestDaigasso()
         {
-            var fnt = new BCFNT(GZip.OpenRead(@"C:\dbbp\unver\patch\font\Basic.bcfnt.gz"));
-            var fntSym = new BCFNT(GZip.OpenRead(@"C:\dbbp\unver\patch\font\SisterSymbol.bcfnt.gz"));
-            var fntRim = new BCFNT(GZip.OpenRead(@"C:\dbbp\unver\patch\font\BasicRim.bcfnt.gz"));
-            var bmp = (Bitmap)Image.FromFile(@"C:\Users\Adib\Desktop\daigasso.png");
+            var fnt = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\Basic.bcfnt.gz"));
+            var fntSym = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\SisterSymbol.bcfnt.gz"));
+            var fntRim = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\BasicRim.bcfnt.gz"));
+            var bmp = (Bitmap)Image.FromFile(@"C:\fti\daigasso_box.png");
             fnt.SetColor(Color.Black);
             fntSym.SetColor(Color.Black);            
             using (var g = Graphics.FromImage(bmp))
@@ -131,7 +132,7 @@ namespace CeteraTestApp
                 }
             }
             BackgroundImage = bmp;
-            BackgroundImage = fntSym.bmp;
+            //BackgroundImage = fntSym.bmp;
         }
 
         public void TestLayout(string path)
@@ -154,31 +155,15 @@ namespace CeteraTestApp
             //var fnt = new BCFNT(File.OpenRead(@"C:\Users\Adib\Desktop\pikachu.bcfnt"));
             //int k = 1;
 
-            //TestFile(@"C:\pikachu\Graphics\product\menu\common.arc\timg\topmenu_talk.bflim");
-            //TestFile(@"C:\dqmrs3\Images&Menus\Layout\Menu\Upper_menu.arc\extracted\timg\txt_item.bclim");
-            TestFile(@"C:\Users\Adib\Desktop\flyer.bclim");
-            //TestFile(@"C:\Users\Adib\Desktop\blah\criware.xi");
-            //TestFile(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
-            //TestFile(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex");
-            //TestXFFont(@"C:\Users\Adib\Downloads\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
-            //TestLayout(@"C:\Users\Adib\Desktop\ms_normal.bclyt");
+            TestFile(@"C:\fti\sample_files\topmenu_talk.bflim");
+            //TestFile(@"C:\fti\sample_files\flyer.bclim");
+            //TestFile(@"C:\fti\sample_files\criware.xi");
+            //TestFile(@"C:\fti\dumps\traveler\ExtractedRomFS\ctr\ttp\ar\ar_mikoto.xi");
+            //TestFile(@"C:\fti\sample_files\zor_cmbko4.jtex");
+            //TestXF(@"C:\fti\sample_files\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
+            //TestLayout(@"C:\fti\sample_files\ms_normal.bclyt");
             //TestDaigasso();
 
-            //using (var br = new BinaryReaderX(File.OpenRead(@"C:\Users\Adib\Downloads\zor_cmbko4.jtex")))
-            //{
-            //    br.ReadBytes(128);
-            //    var tex = br.ReadBytes(65536);
-            //    var settings = new Settings { Width = 512, Height = 128, Format = Format.ETC1A4 };
-            //    var bmp = Common.Load(tex, settings);
-
-            //    // Recompress
-            //    var etc = Common.Save(bmp, settings);
-            //    bmp = Common.Load(etc, settings);
-
-            //    BackgroundImage = bmp;
-            //}
-
-            //BackgroundImage = Image.FromFile(@"C:\dbbp\images\Demo_Op_Layout_Op04_cut4_flyerNew.png");
             var settings = new Settings { Format = Format.ETC1A4 };
             var stp = Stopwatch.StartNew();
             var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
@@ -198,7 +183,7 @@ namespace CeteraTestApp
             ////var bytes = File.ReadAllBytes(@"C:\Users\Adib\Desktop\Basic.bcfnt").Skip(128).ToArray();
             ////var bytes = File.ReadAllBytes(@"C:\Users\Adib\Desktop\rocket.bcfnt").Skip(128).ToArray();
             ////BackColor = Color.Red;
-            ////var bmp = ImageCommon.FromTexture(bytes, 128, 128 * 4, ImageCommon.Format.L4, ImageCommon.Swizzle.RightDown);
+            ////var bmp = ImageCommon.FromTexture(bytes, 128, 128 * 4, ImageCommon.Format.L4, ImageCommon.Orientation.RightDown);
             ////BackgroundImage = bmp;
             ////bmp.Save(@"C:\Users\Adib\Desktop\rocket.png");
             ////var fnt = new BCFNT(@"C:\Users\Adib\Desktop\MAJOR 3DS CLEANUP\Basic.bcfnt");
