@@ -263,8 +263,7 @@ namespace Cetera.Image
                     // special case 2: this block was previously etc1-compressed
                     else if (!Optimizer.RepackEtc1CompressedBlock(colors, out block))
                     {
-                        block = PackSolidColor(new RGB(0, 255, 255));
-                        //block = Optimizer.Encode(colors);
+                        block = Optimizer.Encode(colors);
                     }
 
                     func(new PixelData { Alpha = alpha, Block = block });
@@ -359,6 +358,7 @@ namespace Cetera.Image
                 return true;
             }
 
+            #region Pre-computed lookup table for recompressing etc1
             static bool[][] lookup16 = new bool[8][];
             static bool[][] lookup32 = new bool[8][];
             static byte[][][] lookup16big = new byte[8][][];
@@ -383,7 +383,9 @@ namespace Cetera.Image
                     }
                 }
             }
+            #endregion
 
+            // This is currently still very brute-forcey. Can be improved in the future
             public static bool RepackEtc1CompressedBlock(List<RGB> colors, out Block block)
             {
                 foreach (var flip in new[] { false, true })
@@ -489,59 +491,43 @@ namespace Cetera.Image
                 var bestsolns = new SolutionSet();
                 foreach (var flip in new[] { false, true })
                 {
-                    var pixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0).ToArray();
-                    var pixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1).ToArray();
+                    var pixels = new[] { 0, 1 }.Select(i => colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == i).ToArray()).ToArray();
                     foreach (var diff in new[] { false, true }) // let's again just assume no diff
                     {
+                        var solns = new Solution[2];
                         int limit = diff ? 32 : 16;
-                        Func<IEnumerable<byte>, int[]> GetColors = src =>
-                            (from n in Enumerable.Range(0, limit)
-                             let n2 = diff ? (n << 3) | (n >> 2) : n * 17
-                             from t in modifiers
-                             orderby src.Sum(ch => t.Select(mod => Clamp(n2 + mod)).Min(m => Square(m - ch)))
-                             select n)
-                             .Distinct().Take(4).ToArray();
-                        var rs = GetColors(pixels0.Select(c => c.R));
-                        var gs = GetColors(pixels0.Select(c => c.G));
-                        var bs = GetColors(pixels0.Select(c => c.B));
-
-                        var opt0 = new Optimizer(pixels0, limit, bestsolns.TotalError);
-                        if (!opt0.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b))
-                            & !opt0.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) // intentional & rather than &&
-                            continue;
-                        if (opt0.best_soln.error > 9000)
+                        int i;
+                        for (i = 0; i < 2; i++)
                         {
-                            opt0.baseColor = opt0.best_soln.blockColor;
-                            opt0.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
-                        }
-                        if (opt0.best_soln.error >= bestsolns.TotalError)
-                            continue;
-
-                        var opt1 = new Optimizer(pixels1, limit, bestsolns.TotalError - opt0.best_soln.error);
-                        if (diff)
-                        {
-                            opt1.baseColor = opt0.best_soln.blockColor;
-                            if (!opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
-                                continue;
-                        }
-                        else
-                        {
-                            rs = GetColors(pixels1.Select(c => c.R));
-                            gs = GetColors(pixels1.Select(c => c.G));
-                            bs = GetColors(pixels1.Select(c => c.B));
-                            if (!opt1.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b))
-                                & !opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) // intentional & rather than &&
-                                continue;
-                            if (opt1.best_soln.error > 9000)
+                            var errorThreshold = bestsolns.TotalError;
+                            if (i == 1) errorThreshold -= solns[0].error;
+                            var opt = new Optimizer(pixels[i], limit, errorThreshold);
+                            if (i == 1 && diff)
                             {
-                                opt1.baseColor = opt0.best_soln.blockColor;
-                                opt1.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
+                                opt.baseColor = solns[0].blockColor;
+                                if (!opt.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) break;
                             }
+                            else
+                            {
+                                if (!opt.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3, 4)) break;
+                                // TODO: Fix fairly arbitrary/unrefined thresholds that control how far away to scan for potentially better solutions.
+                                if (opt.best_soln.error > 9000)
+                                {
+                                    if (opt.best_soln.error > 18000)
+                                        opt.ComputeDeltas(-8, -7, -6, -5, 5, 6, 7, 8);
+                                    else
+                                        opt.ComputeDeltas(-5, 5);
+                                }
+                            }
+                            if (opt.best_soln.error >= errorThreshold) break;
+                            solns[i] = opt.best_soln;
                         }
-
-                        var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
-                        if (solnset.TotalError < bestsolns.TotalError)
-                            bestsolns = solnset;
+                        if (i == 2)
+                        {
+                            var solnset = new SolutionSet(flip, diff, solns[0], solns[1]);
+                            if (solnset.TotalError < bestsolns.TotalError)
+                                bestsolns = solnset;
+                        }
 
                     }
                 }
