@@ -7,28 +7,6 @@ using System.Runtime.InteropServices;
 
 namespace Cetera.Image
 {
-    static class Etc1Extensions
-    {
-        public static T MinBy<T>(this IEnumerable<T> src, Func<T, int> func)
-        {
-            var minArg = default(T);
-            var minValue = int.MaxValue;
-
-            foreach (var item in src)
-            {
-                var value = func(item);
-                if (value == 0) return item;
-                if (value.CompareTo(minValue) < 0)
-                {
-                    minArg = item;
-                    minValue = value;
-                }
-            }
-
-            return minArg;
-        }
-    }
-
     public class Etc1
     {
         static readonly int[] order3ds = { 0, 4, 1, 5, 8, 12, 9, 13, 2, 6, 3, 7, 10, 14, 11, 15 };
@@ -123,6 +101,86 @@ namespace Cetera.Image
             public Block Block { get; set; }
         }
 
+        class SolutionSet
+        {
+            const int MAX_ERROR = 99999999;
+
+            bool flip;
+            bool diff;
+            Solution soln0;
+            Solution soln1;
+
+            public int TotalError => soln0.error + soln1.error;
+
+            public SolutionSet()
+            {
+                soln1 = soln0 = new Solution { error = MAX_ERROR };
+            }
+
+            public SolutionSet(bool flip, bool diff, Solution soln0, Solution soln1)
+            {
+                this.flip = flip;
+                this.diff = diff;
+                this.soln0 = soln0;
+                this.soln1 = soln1;
+            }
+
+            public Block ToBlock()
+            {
+                var blk = new Block
+                {
+                    DiffBit = diff,
+                    FlipBit = flip,
+                    Table0 = Array.IndexOf(modifiers, soln0.intenTable),
+                    Table1 = Array.IndexOf(modifiers, soln1.intenTable)
+                };
+
+                if (blk.FlipBit)
+                {
+                    int m0 = soln0.selectorMSB, m1 = soln1.selectorMSB;
+                    m0 = (m0 & 0xC0) * 64 + (m0 & 0x30) * 16 + (m0 & 0xC) * 4 + (m0 & 0x3);
+                    m1 = (m1 & 0xC0) * 64 + (m1 & 0x30) * 16 + (m1 & 0xC) * 4 + (m1 & 0x3);
+                    blk.MSB = (ushort)(m0 + 4 * m1);
+                    int l0 = soln0.selectorLSB, l1 = soln1.selectorLSB;
+                    l0 = (l0 & 0xC0) * 64 + (l0 & 0x30) * 16 + (l0 & 0xC) * 4 + (l0 & 0x3);
+                    l1 = (l1 & 0xC0) * 64 + (l1 & 0x30) * 16 + (l1 & 0xC) * 4 + (l1 & 0x3);
+                    blk.LSB = (ushort)(l0 + 4 * l1);
+                }
+                else
+                {
+                    blk.MSB = (ushort)(soln0.selectorMSB + 256 * soln1.selectorMSB);
+                    blk.LSB = (ushort)(soln0.selectorLSB + 256 * soln1.selectorLSB);
+                }
+
+                if (blk.DiffBit)
+                {
+                    int rdiff = (soln1.blockColor.R - soln0.blockColor.R + 8) % 8;
+                    int gdiff = (soln1.blockColor.G - soln0.blockColor.G + 8) % 8;
+                    int bdiff = (soln1.blockColor.B - soln0.blockColor.B + 8) % 8;
+                    blk.R = (byte)(soln0.blockColor.R * 8 + rdiff);
+                    blk.G = (byte)(soln0.blockColor.G * 8 + gdiff);
+                    blk.B = (byte)(soln0.blockColor.B * 8 + bdiff);
+                }
+                else
+                {
+                    blk.R = (byte)(soln0.blockColor.R * 16 + soln1.blockColor.R);
+                    blk.G = (byte)(soln0.blockColor.G * 16 + soln1.blockColor.G);
+                    blk.B = (byte)(soln0.blockColor.B * 16 + soln1.blockColor.B);
+                }
+
+                return blk;
+            }
+        }
+
+        class Solution
+        {
+            public int error;
+            public RGB blockColor;
+            public int[] intenTable;
+            public int selectorMSB;
+            public int selectorLSB;
+        }
+
         static int Clamp(int n) => Math.Max(0, Math.Min(n, 255));
         static int Sign3(int n) => ((n + 4) % 8) - 4;
         static int Extend5to8(int n) => (n << 3) | (n >> 2);
@@ -157,18 +215,59 @@ namespace Cetera.Image
 
         public class Encoder
         {
+            static int[] solidColorLookup = (from limit in new[] { 16, 32 }
+                                             from inten in modifiers
+                                             from selector in inten
+                                             from color in Enumerable.Range(0, 256)
+                                             select Enumerable.Range(0, limit).Min(packed_c =>
+                                             {
+                                                 int c = (limit == 32) ? (packed_c << 3) | (packed_c >> 2) : packed_c * 17;
+                                                 return (Math.Abs(Clamp(c + selector) - color) << 8) | packed_c;
+                                             })).ToArray();
+
             List<Color> queue = new List<Color>();
+
+            public static Block PackSolidColor(RGB c)
+            {
+                return (from i in Enumerable.Range(0, 64)
+                        let r = solidColorLookup[i * 256 + c.R]
+                        let g = solidColorLookup[i * 256 + c.G]
+                        let b = solidColorLookup[i * 256 + c.B]
+                        orderby ErrorRGB(r >> 8, g >> 8, b >> 8)
+                        let soln = new Solution
+                        {
+                            blockColor = new RGB(r, g, b),
+                            intenTable = modifiers[(i >> 2) & 7],
+                            selectorMSB = (i & 2) == 2 ? 0xFF : 0,
+                            selectorLSB = (i & 1) == 1 ? 0xFF : 0
+                        }
+                        select new SolutionSet(false, (i & 32) == 32, soln, soln).ToBlock())
+                        .First();
+            }
 
             public void Set(Color c, Action<PixelData> func)
             {
                 queue.Add(c);
                 if (queue.Count == 16)
                 {
-                    var colors = Enumerable.Range(0, 16).Select(j => queue[order3ds[order3ds[order3ds[j]]]]); // invert order3ds
-                    var alpha = colors.Reverse().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
-                    var data = Optimizer.Encode(colors.Select(c2 => new RGB(c2.R, c2.G, c2.B)).ToList());
+                    var colorsWindows = Enumerable.Range(0, 16).Select(j => queue[order3ds[order3ds[order3ds[j]]]]); // invert order3ds
+                    var alpha = colorsWindows.Reverse().Aggregate(0ul, (a, b) => (a * 16) | (byte)(b.A / 16));
+                    var colors = colorsWindows.Select(c2 => new RGB(c2.R, c2.G, c2.B)).ToList();
 
-                    func(new PixelData { Alpha = alpha, Block = data });
+                    Block block;
+                    // special case 1: this block has all 16 pixels exactly the same color
+                    if (colors.All(color => color == colors[0]))
+                    {
+                        block = PackSolidColor(colors[0]);
+                    }
+                    // special case 2: this block was previously etc1-compressed
+                    else if (!Optimizer.RepackEtc1CompressedBlock(colors, out block))
+                    {
+                        block = PackSolidColor(new RGB(0, 255, 255));
+                        //block = Optimizer.Encode(colors);
+                    }
+
+                    func(new PixelData { Alpha = alpha, Block = block });
                     queue.Clear();
                 }
             }
@@ -177,51 +276,6 @@ namespace Cetera.Image
         // Loosely based on rg_etc1
         class Optimizer
         {
-            static int[] inverseLookup = (from limit in new[] { 16, 32 }
-                                          from inten in modifiers
-                                          from selector in inten
-                                          from color in Enumerable.Range(0, 256)
-                                          select Enumerable.Range(0, limit).Min(packed_c =>
-                                          {
-                                              int c = (limit == 32) ? (packed_c << 3) | (packed_c >> 2) : packed_c * 17;
-                                              return (Math.Abs(Clamp(c + selector) - color) << 8) | packed_c;
-                                          })).ToArray();
-
-            class SolutionSet
-            {
-                const int MAX_ERROR = 99999999;
-
-                public SolutionSet()
-                {
-                    total_error = MAX_ERROR;
-                }
-
-                public SolutionSet(bool flip, bool diff, Solution soln0, Solution soln1)
-                {
-                    this.flip = flip;
-                    this.diff = diff;
-                    this.soln0 = soln0;
-                    this.soln1 = soln1;
-                    total_error = soln0.error + soln1.error;
-                }
-
-                public readonly bool flip;
-                public readonly bool diff;
-                public readonly int total_error;
-                public readonly Solution soln0;
-                public readonly Solution soln1;
-                public Solution this[int i] => i == 0 ? soln0 : soln1;
-            }
-
-            class Solution
-            {
-                public int error;
-                public RGB blockColour;
-                public int[] intenTable;
-                public int selectorMSB;
-                public int selectorLSB;
-            }
-
             RGB[] pixels;
             public RGB baseColor;
             int limit;
@@ -278,7 +332,7 @@ namespace Cetera.Image
 
             bool EvaluateSolution(RGB c, int[] intenTable)
             {
-                var soln = new Solution { blockColour = c, intenTable = intenTable };
+                var soln = new Solution { blockColor = c, intenTable = intenTable };
                 var newTable = new RGB[4];
                 var scaledColor = c.Scale(limit);
                 for (int i = 0; i < 4; i++)
@@ -303,33 +357,6 @@ namespace Cetera.Image
                 }
                 best_soln = soln;
                 return true;
-            }
-
-            public static Block PackSolidColor(RGB c)
-            {
-                var soln = (from i in Enumerable.Range(0, 64)
-                            let r = inverseLookup[i * 256 + c.R]
-                            let g = inverseLookup[i * 256 + c.G]
-                            let b = inverseLookup[i * 256 + c.B]
-                            let table = inverseLookup[i]
-                            let error = ErrorRGB(r >> 8, g >> 8, b >> 8)
-                            let blockColour = new RGB(r, g, b)
-                            select new Solution { error = (error << 8) | i, blockColour = blockColour })
-                            .MinBy(s => s.error);
-
-                int val = (byte)soln.error;
-                int multiplier = (val & 32) == 32 ? 8 : 17;
-                return new Block
-                {
-                    DiffBit = (val & 32) == 32,
-                    Table0 = (val >> 2) & 7,
-                    Table1 = (val >> 2) & 7,
-                    MSB = (ushort)((val & 2) != 0 ? 0xFFFF : 0),
-                    LSB = (ushort)((val & 1) != 0 ? 0xFFFF : 0),
-                    R = (byte)(soln.blockColour.R * multiplier),
-                    G = (byte)(soln.blockColour.G * multiplier),
-                    B = (byte)(soln.blockColour.B * multiplier),
-                };
             }
 
             static bool[][] lookup16 = new bool[8][];
@@ -357,7 +384,7 @@ namespace Cetera.Image
                 }
             }
 
-            static Block? RepackEtc1CompressedBlock(List<RGB> colors)
+            public static bool RepackEtc1CompressedBlock(List<RGB> colors, out Block block)
             {
                 foreach (var flip in new[] { false, true })
                 {
@@ -399,7 +426,10 @@ namespace Cetera.Image
                                 var bs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.B))).ToArray();
                                 soln1 = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
                                 if (soln1 != null)
-                                    return FromSet(new SolutionSet(flip, diff, soln0, soln1));
+                                {
+                                    block = new SolutionSet(flip, diff, soln0, soln1).ToBlock();
+                                    return true;
+                                }
                             }
                         }
                         else
@@ -429,87 +459,32 @@ namespace Cetera.Image
                                 foreach (var soln0 in solns0)
                                 {
                                     var q = (from r in rs
-                                             let dr = r - soln0.blockColour.R
+                                             let dr = r - soln0.blockColor.R
                                              where dr >= -4 && dr < 4
                                              from g in gs
-                                             let dg = g - soln0.blockColour.G
+                                             let dg = g - soln0.blockColor.G
                                              where dg >= -4 && dg < 4
                                              from b in bs
-                                             let db = b - soln0.blockColour.B
+                                             let db = b - soln0.blockColor.B
                                              where db >= -4 && db < 4
                                              select new RGB(r, g, b));
                                     var soln1 = opt1.FindExactMatches(q, modifiers[ti]).FirstOrDefault();
                                     if (soln1 != null)
-                                        return FromSet(new SolutionSet(flip, diff, soln0, soln1));
+                                    {
+                                        block = new SolutionSet(flip, diff, soln0, soln1).ToBlock();
+                                        return true;
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                return null;
-            }
-
-            static Block FromSet(SolutionSet bestsolns)
-            {
-                var blk = new Block
-                {
-                    DiffBit = bestsolns.diff,
-                    FlipBit = bestsolns.flip,
-                    Table0 = Array.IndexOf(modifiers, bestsolns[0].intenTable),
-                    Table1 = Array.IndexOf(modifiers, bestsolns[1].intenTable)
-                };
-
-                if (blk.FlipBit)
-                {
-                    int m0 = bestsolns[0].selectorMSB, m1 = bestsolns[1].selectorMSB;
-                    m0 = (m0 & 0xC0) * 64 + (m0 & 0x30) * 16 + (m0 & 0xC) * 4 + (m0 & 0x3);
-                    m1 = (m1 & 0xC0) * 64 + (m1 & 0x30) * 16 + (m1 & 0xC) * 4 + (m1 & 0x3);
-                    blk.MSB = (ushort)(m0 + 4 * m1);
-                    int l0 = bestsolns[0].selectorLSB, l1 = bestsolns[1].selectorLSB;
-                    l0 = (l0 & 0xC0) * 64 + (l0 & 0x30) * 16 + (l0 & 0xC) * 4 + (l0 & 0x3);
-                    l1 = (l1 & 0xC0) * 64 + (l1 & 0x30) * 16 + (l1 & 0xC) * 4 + (l1 & 0x3);
-                    blk.LSB = (ushort)(l0 + 4 * l1);
-                }
-                else
-                {
-                    blk.MSB = (ushort)(bestsolns[0].selectorMSB + 256 * bestsolns[1].selectorMSB);
-                    blk.LSB = (ushort)(bestsolns[0].selectorLSB + 256 * bestsolns[1].selectorLSB);
-                }
-
-                var c0 = bestsolns[0].blockColour;
-                var c1 = bestsolns[1].blockColour;
-                if (blk.DiffBit)
-                {
-                    int rdiff = (c1.R - c0.R + 8) % 8;
-                    int gdiff = (c1.G - c0.G + 8) % 8;
-                    int bdiff = (c1.B - c0.B + 8) % 8;
-                    blk.R = (byte)(c0.R * 8 + rdiff);
-                    blk.G = (byte)(c0.G * 8 + gdiff);
-                    blk.B = (byte)(c0.B * 8 + bdiff);
-                }
-                else
-                {
-                    blk.R = (byte)(c0.R * 16 + c1.R);
-                    blk.G = (byte)(c0.G * 16 + c1.G);
-                    blk.B = (byte)(c0.B * 16 + c1.B);
-                }
-
-                return blk;
+                block = default(Block);
+                return false;
             }
 
             public static Block Encode(List<RGB> colors)
             {
-                // special case 1: this block has all 16 pixels exactly the same color
-                if (colors.Distinct().Count() == 1)
-                {
-                    return PackSolidColor(colors[0]);
-                }
-
-                // special case 2: this block was previously etc1-compressed
-                var recompressedBlock = RepackEtc1CompressedBlock(colors);
-                if (recompressedBlock != null)
-                    return recompressedBlock.Value;
-
                 // regular case: just try our best to compress and minimise error
                 var bestsolns = new SolutionSet();
                 foreach (var flip in new[] { false, true })
@@ -530,22 +505,22 @@ namespace Cetera.Image
                         var gs = GetColors(pixels0.Select(c => c.G));
                         var bs = GetColors(pixels0.Select(c => c.B));
 
-                        var opt0 = new Optimizer(pixels0, limit, bestsolns.total_error);
+                        var opt0 = new Optimizer(pixels0, limit, bestsolns.TotalError);
                         if (!opt0.TestUnscaledColors(from r in rs from b in bs from g in gs select new RGB(r, g, b))
                             & !opt0.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3)) // intentional & rather than &&
                             continue;
                         if (opt0.best_soln.error > 9000)
                         {
-                            opt0.baseColor = opt0.best_soln.blockColour;
+                            opt0.baseColor = opt0.best_soln.blockColor;
                             opt0.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
                         }
-                        if (opt0.best_soln.error >= bestsolns.total_error)
+                        if (opt0.best_soln.error >= bestsolns.TotalError)
                             continue;
 
-                        var opt1 = new Optimizer(pixels1, limit, bestsolns.total_error - opt0.best_soln.error);
+                        var opt1 = new Optimizer(pixels1, limit, bestsolns.TotalError - opt0.best_soln.error);
                         if (diff)
                         {
-                            opt1.baseColor = opt0.best_soln.blockColour;
+                            opt1.baseColor = opt0.best_soln.blockColor;
                             if (!opt1.ComputeDeltas(-4, -3, -2, -1, 0, 1, 2, 3))
                                 continue;
                         }
@@ -559,18 +534,18 @@ namespace Cetera.Image
                                 continue;
                             if (opt1.best_soln.error > 9000)
                             {
-                                opt1.baseColor = opt0.best_soln.blockColour;
+                                opt1.baseColor = opt0.best_soln.blockColor;
                                 opt1.ComputeDeltas(-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7);
                             }
                         }
 
                         var solnset = new SolutionSet(flip, diff, opt0.best_soln, opt1.best_soln);
-                        if (solnset.total_error < bestsolns.total_error)
+                        if (solnset.TotalError < bestsolns.TotalError)
                             bestsolns = solnset;
 
                     }
                 }
-                return FromSet(bestsolns);
+                return bestsolns.ToBlock();
             }
         }
     }
