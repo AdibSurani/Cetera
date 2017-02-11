@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace Cetera.Image
 {
-    public class Etc1
+    public class ETC1
     {
         static readonly int[] order3ds = { 0, 4, 1, 5, 8, 12, 9, 13, 2, 6, 3, 7, 10, 14, 11, 15 };
 

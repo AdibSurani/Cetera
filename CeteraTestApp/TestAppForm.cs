@@ -135,9 +135,55 @@ namespace CeteraTestApp
             //BackgroundImage = fntSym.bmp;
         }
 
+        void TestRecompressEtc1()
+        {
+            var settings = new Settings { Format = Format.ETC1A4 };
+            var stp = Stopwatch.StartNew();
+            var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
+            Text = stp.Elapsed.ToString();
+            stp.Restart();
+            BackgroundImage = Common.Load(tmp1, settings);
+            //BackgroundImage.Save(@"C:\Users\Adib\Desktop\blergh123.png");
+            label1.Text = stp.Elapsed.ToString();
+            //label1.Text = Etc1.WorstErrorEver.ToString();
+        }
+
         public void TestLayout(string path)
         {
             var lyt = new BCLYT(File.OpenRead(path));
+            var pic1 = lyt.sections.Where(z => z.Magic == "pic1").Select(z => (BCLYT.Pane)z.Object).ToList();
+            foreach (var pic in pic1)
+            {
+                Debug.WriteLine($"<pic1 x=\"{pic.translation.x}\" y=\"{pic.translation.y}\" width=\"{pic.size.x}\" height=\"{pic.size.y}\" imgID=\"{1}\"");
+            }
+        }
+
+        public void TestListRocketTxt1s()
+        {
+            foreach (var path in Directory.GetFiles(@"C:\fti\dumps\rocketslime\ExtractedRomFS\data\Game\Layout\", "*.arc", SearchOption.AllDirectories))
+            {
+                var arc = new DARC(File.OpenRead(path));
+                //if (arc.Count(x => Path.GetExtension(x.Path) == ".bclyt") < 1) throw new Exception();
+                foreach (var item in arc)
+                {
+                    if (!item.Path.EndsWith(".bclyt")) continue;
+                    //Debug.WriteLine(Path.GetFileName(path) + "\\" + Path.GetFileName(item.Path));
+                    var bclyt = new BCLYT(new MemoryStream(item.Data));
+                    if (!bclyt.sections.Any(sec => sec.Magic == "txt1")) continue;
+                    //if (Path.GetFileNameWithoutExtension(path) != Path.GetFileNameWithoutExtension(item.Path)) Debug.WriteLine(path);
+                    Debug.WriteLine(path.Substring(57) + "\\" + Path.GetFileName(item.Path));
+                    foreach (var txt in bclyt.sections.Where(s => s.Magic == "txt1"))
+                    {
+                        var tuple = (Tuple<BCLYT.Pane, BCLYT.TextBox, string>)(txt.Object);
+                        var txtBox = tuple.Item2;
+                        var txtPane = tuple.Item1;
+                        var blah = txtBox.string_length == 0 ? "" : $" charLimit=\"{txtBox.string_length / 2 - 1}\"";
+                        if (txtBox.string_length == 0) throw new Exception();
+                        Debug.WriteLine('\t' + $"<{txt.Magic} name=\"{txtPane.name}\" width=\"{txtPane.size.x}\"{blah} text=\"{tuple.Item3.Replace("\n", "\\n")}\">");
+                    }
+                    int k = 1;
+                }
+            }
         }
 
         public TestAppForm()
@@ -162,17 +208,10 @@ namespace CeteraTestApp
             //TestFile(@"C:\fti\sample_files\zor_cmbko4.jtex");
             //TestXF(@"C:\fti\sample_files\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\fti\sample_files\ms_normal.bclyt");
+            TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
             //TestDaigasso();
 
-            var settings = new Settings { Format = Format.ETC1A4 };
-            var stp = Stopwatch.StartNew();
-            var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
-            Text = stp.Elapsed.ToString();
-            stp.Restart();
-            BackgroundImage = Common.Load(tmp1, settings);
-            //BackgroundImage.Save(@"C:\Users\Adib\Desktop\blergh123.png");
-            label1.Text = stp.Elapsed.ToString();
-            //label1.Text = Etc1.WorstErrorEver.ToString();
+            
 
             return;
 

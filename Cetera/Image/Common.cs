@@ -32,23 +32,17 @@ namespace Cetera.Image
         public Orientation Orientation { get; set; } = Orientation.Default;
         public bool PadToPowerOf2 { get; set; } = true;
 
-        public int Stride
-        {
-            get
-            {
-                int stride = (int)Orientation < 4 ? Width : Height;
-                stride = (stride + 7) & ~7; // round up to multiple of 8
-                if (PadToPowerOf2) stride = 2 << (int)Math.Log(stride - 1, 2);
-                return stride;
-            }
-        }
-
         /// <summary>
         /// This is currently a hack
         /// </summary>
         public void SetFormat<T>(T originalFormat) where T : struct, IConvertible
         {
-            Format = (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
+            Format = ConvertFormat(originalFormat);
+        }
+
+        static Format ConvertFormat<T>(T originalFormat) where T : struct, IConvertible
+        {
+            return (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
         }
     }
 
@@ -67,9 +61,9 @@ namespace Cetera.Image
         {
             using (var br = new BinaryReaderX(new MemoryStream(tex)))
             {
-                var etc1decoder = new Etc1.Decoder();
+                var etc1decoder = new ETC1.Decoder();
 
-                while (br.BaseStream.Position != br.BaseStream.Length)
+                while (true)
                 {
                     int a = 255, r = 255, g = 255, b = 255;
                     switch (format)
@@ -127,7 +121,7 @@ namespace Cetera.Image
                             yield return etc1decoder.Get(() =>
                             {
                                 var alpha = (format == Format.ETC1A4) ? br.ReadUInt64() : ulong.MaxValue;
-                                return new Etc1.PixelData { Alpha = alpha, Block = br.ReadStruct<Etc1.Block>() };
+                                return new ETC1.PixelData { Alpha = alpha, Block = br.ReadStruct<ETC1.Block>() };
                             });
                             continue;
                         case Format.L4:
@@ -146,8 +140,13 @@ namespace Cetera.Image
 
         static IEnumerable<Point> GetPointSequence(Settings settings)
         {
-            int strideWidth = PadDimension(settings.Width, settings.PadToPowerOf2);
-            int strideHeight = PadDimension(settings.Height, settings.PadToPowerOf2);
+            int strideWidth = (settings.Width + 7) & ~7;
+            int strideHeight = (settings.Height + 7) & ~7;
+            if (settings.PadToPowerOf2)
+            {
+                strideWidth = 2 << (int)Math.Log(strideWidth - 1, 2);
+                strideHeight = 2 << (int)Math.Log(strideHeight - 1, 2);
+            }
             int stride = (int)settings.Orientation < 4 ? strideWidth : strideHeight;
             for (int i = 0; i < strideWidth * strideHeight; i++)
             {
@@ -188,12 +187,12 @@ namespace Cetera.Image
             unsafe
             {
                 var ptr = (int*)data.Scan0;
-                foreach (var pair in colors.Zip(points, Tuple.Create))
+                foreach (var pair in points.Zip(colors, Tuple.Create))
                 {
-                    int x = pair.Item2.X, y = pair.Item2.Y;
+                    int x = pair.Item1.X, y = pair.Item1.Y;
                     if (0 <= x && x < width && 0 <= y && y < height)
                     {
-                        ptr[data.Stride * y / 4 + x] = pair.Item1.ToArgb();
+                        ptr[data.Stride * y / 4 + x] = pair.Item2.ToArgb();
                     }
                 }
             }
@@ -211,7 +210,7 @@ namespace Cetera.Image
             int width = bmp.Width, height = bmp.Height;
 
             var etc1colors = new Queue<Color>();
-            var etc1encoder = new Etc1.Encoder();
+            var etc1encoder = new ETC1.Encoder();
 
             using (var bw = new BinaryWriterX(ms))
             {

@@ -82,11 +82,11 @@ namespace Cetera
 
     [DebuggerDisplay("{x}, {y}")]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct Vector2D { public float x, y; }
+    public struct Vector2D { public float x, y; }
 
     [DebuggerDisplay("{x}, {y}, {z}")]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    struct Vector3D { public float x, y, z; }
+    public struct Vector3D { public float x, y, z; }
 
     class Common
     {

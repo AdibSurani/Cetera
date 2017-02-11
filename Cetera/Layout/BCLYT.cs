@@ -33,7 +33,7 @@ namespace Cetera.Layout
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Pane
+        public struct Pane
         {
             public byte flags;
             public byte base_position_type;
@@ -47,15 +47,23 @@ namespace Cetera.Layout
             public Vector2D size;
         }
 
+        public enum AlignText : byte
+        {
+            Sync,
+            Left,
+            Center,
+            Right
+        }
+
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct TextBox
+        public struct TextBox
         {
             public short buffer_length;
             public short string_length;
             public short materialID;
             public short fontID;
             public byte position_type;
-            public byte text_align;
+            public AlignText text_align;
             public short padding;
             public int text_offset;
             public int color_top;
@@ -64,11 +72,12 @@ namespace Cetera.Layout
             public Vector2D font_kerning;
         }
 
+        public List<NW4CSection> sections;
         public BCLYT(Stream input)
         {
             using (var sr = new BinaryReaderX(input))
             {
-                var sections = sr.ReadSections();
+                sections = sr.ReadSections();
 
                 foreach (var sec in sections)
                 {
@@ -88,22 +97,28 @@ namespace Cetera.Layout
                             case "mat1":
                                 // incomplete
                                 break;
-                            case "pan1":
-                                // incomplete
                             case "pic1":
+                                // incomplete
+                            case "pan1":
                                 // incomplete
                             case "wnd1":
                                  // incomplete
                             case "bnd1":
                                 // incomplete
-                                sec.Object = br.ReadStruct<Pane>();
+                                var pane = br.ReadStruct<Pane>();
+                                sec.Object = pane;
+
+                                //if (sec.Magic == "pic1")
+                                //Debug.WriteLine($"<{sec.Magic} name='{pane.name}' size='{pane.size.x},{pane.size.y}'>");
+
                                 break;
                             case "txt1":
                                 var txtPane = br.ReadStruct<Pane>();
                                 var txtBox = br.ReadStruct<TextBox>();
                                 var str = "";
                                 if (txtBox.string_length != 0) str = br.ReadCStringW();
-                                sec.Object = new { txtPane, txtBox, str };
+                                //sec.Object = new { txtPane, txtBox, str };
+                                sec.Object = Tuple.Create(txtPane, txtBox, str);
                                 break;
                             case "pts1":
                             case "pas1":
