@@ -10,7 +10,7 @@ namespace Cetera.Image
     public sealed class BXLIM
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct BCLIMImageHeader
+        public struct BCLIMImageHeader
         {
             public short width;
             public short height;
@@ -20,7 +20,7 @@ namespace Cetera.Image
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct BFLIMImageHeader
+        public struct BFLIMImageHeader
         {
             public short width;
             public short height;
@@ -37,6 +37,9 @@ namespace Cetera.Image
             ETC1, ETC1A4, L4, A4
         }
 
+        private string magic = string.Empty;
+        public BCLIMImageHeader BCLIMHeader { get; private set; }
+        public BFLIMImageHeader BFLIMHeader { get; private set; }
         public Bitmap Image { get; set; }
         public Settings Settings { get; set; }
         public short UnknownShort { get; set; }
@@ -46,26 +49,76 @@ namespace Cetera.Image
             using (var br = new BinaryReaderX(input))
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
-                string magic;
                 var imagData = br.ReadSections(out magic).Single().Data;
                 switch (magic)
                 {
                     case "CLIM":
-                        var bclim = imagData.ToStruct<BCLIMImageHeader>();
-                        Settings = new Settings { Width = bclim.width, Height = bclim.height, Orientation = bclim.orientation };
-                        Settings.SetFormat(bclim.format);
-                        UnknownShort = bclim.unknown;
+                        BCLIMHeader = imagData.ToStruct<BCLIMImageHeader>();
+                        Settings = new Settings { Width = BCLIMHeader.width, Height = BCLIMHeader.height, Orientation = BCLIMHeader.orientation };
+                        Settings.SetFormat(BCLIMHeader.format);
+                        UnknownShort = BCLIMHeader.unknown;
                         break;
                     case "FLIM":
-                        var bflim = imagData.ToStruct<BFLIMImageHeader>();
-                        Settings = new Settings { Width = bflim.width, Height = bflim.height, Orientation = bflim.orientation };
-                        Settings.SetFormat(bflim.format);
-                        UnknownShort = bflim.unknown;
+                        BFLIMHeader = imagData.ToStruct<BFLIMImageHeader>();
+                        Settings = new Settings { Width = BFLIMHeader.width, Height = BFLIMHeader.height, Orientation = BFLIMHeader.orientation };
+                        Settings.SetFormat(BFLIMHeader.format);
+                        UnknownShort = BFLIMHeader.unknown;
                         break;
                     default:
                         throw new NotSupportedException($"Unknown image format {magic}");
                 }
                 Image = Common.Load(tex, Settings);
+            }
+        }
+
+        public void Save(Stream output)
+        {
+           using (var bw = new BinaryWriterX(output))
+           {
+               var settings = new Settings();
+               byte[] texture;
+
+               switch (magic)
+               {
+                  case "CLIM":
+                     settings.Width = BCLIMHeader.width;
+                     settings.Height = BCLIMHeader.height;
+                     settings.Orientation = BCLIMHeader.orientation;
+                     settings.Format = Settings.ConvertFormat(BCLIMHeader.format);
+                     texture = Common.Save(Image, settings);
+                     bw.Write(texture);
+
+                     // We can now change the image width/height/filesize!
+                     var modifiedBCLIMHeader = BCLIMHeader;
+                     modifiedBCLIMHeader.width = (short)Image.Width;
+                     modifiedBCLIMHeader.height = (short)Image.Height;
+                     //modifiedHeader.image_size = texture.Length;
+                     //modifiedHeader.file_size = texture.Length + 40;
+                     BCLIMHeader = modifiedBCLIMHeader;
+
+                     bw.WriteStruct(BCLIMHeader);
+                  break;
+                  case "FLIM":
+                     settings.Width = BFLIMHeader.width;
+                     settings.Height = BFLIMHeader.height;
+                     settings.Orientation = BFLIMHeader.orientation;
+                     settings.Format = Settings.ConvertFormat(BFLIMHeader.format);
+                     texture = Common.Save(Image, settings);
+                     bw.Write(texture);
+
+                     // We can now change the image width/height/filesize!
+                     var modifiedBFLIMHeader = BFLIMHeader;
+                     modifiedBFLIMHeader.width = (short)Image.Width;
+                     modifiedBFLIMHeader.height = (short)Image.Height;
+                     //modifiedBFLIMHeader.image_size = texture.Length;
+                     //modifiedBFLIMHeader.file_size = texture.Length + 40;
+                     BFLIMHeader = modifiedBFLIMHeader;
+
+                     bw.WriteStruct(BFLIMHeader);
+                  break;
+                  default:
+                     throw new NotSupportedException($"Unknown image format {magic}");
+               }
             }
         }
     }

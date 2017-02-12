@@ -40,7 +40,7 @@ namespace Cetera.Image
             Format = ConvertFormat(originalFormat);
         }
 
-        static Format ConvertFormat<T>(T originalFormat) where T : struct, IConvertible
+        public static Format ConvertFormat<T>(T originalFormat) where T : struct, IConvertible
         {
             return (Format)Enum.Parse(typeof(Format), originalFormat.ToString());
         }

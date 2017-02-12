@@ -137,13 +137,19 @@ namespace Cetera.Font
             int xOffset = cellCol * (tglp.cell_width + 1);
             int yOffset = sheetNum * tglp.sheet_height + cellRow * (tglp.cell_height + 1);
 
-            g.DrawImage(bmp,
-                new[] { new PointF(x + widthInfo.left * scaleX, y),
-                    new PointF(x + (widthInfo.left + widthInfo.glyph_width) * scaleX, y),
-                    new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY) },
-                new RectangleF(xOffset + 1, yOffset + 1, widthInfo.glyph_width, tglp.cell_height),
-                GraphicsUnit.Pixel,
-                attr);
+            if (widthInfo.glyph_width > 0)
+               g.DrawImage(bmp,
+                   new[] { new PointF(x + widthInfo.left * scaleX, y),
+                       new PointF(x + (widthInfo.left + widthInfo.glyph_width) * scaleX, y),
+                       new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY) },
+                   new RectangleF(xOffset + 1, yOffset + 1, widthInfo.glyph_width, tglp.cell_height),
+                   GraphicsUnit.Pixel,
+                   attr);
+        }
+
+        public float MeasureString(string text, char stopChar, float scale = 1.0f)
+        {
+           return text.TakeWhile(c => c != stopChar).Sum(c => GetWidthInfo(c).char_width) * scale;
         }
 
         public BCFNT(Stream input)
@@ -162,9 +168,14 @@ namespace Cetera.Font
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height * tglp.num_sheets;
                 var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                var settings = new Settings { Width = width, Height = height, Orientation = Orientation.Default };
+                var settings = new Settings
+                {
+                   Width = width,
+                   Height = height,
+                   Format = Settings.ConvertFormat(tglp.sheet_image_format),
+                   PadToPowerOf2 = false
+                };
                 settings.SetFormat(tglp.sheet_image_format);
-                //var colors = Image.Common.GetColorsFromTexture(bytes, tglp.sheet_image_format);
                 bmp = Image.Common.Load(bytes, settings);
 
                 // read CWDH
@@ -187,17 +198,27 @@ namespace Cetera.Font
                         case 0:
                             var charOffset = br.ReadUInt16();
                             for (char i = cmap.code_begin; i <= cmap.code_end; i++)
-                                dicCMAP[i] = i - cmap.code_begin + charOffset;
+                            {
+                                int idx = i - cmap.code_begin + charOffset;
+                                dicCMAP[i] = idx < ushort.MaxValue ? idx : 0;
+                            }
                             break;
                         case 1:
                             for (char i = cmap.code_begin; i <= cmap.code_end; i++)
-                                dicCMAP[i] = br.ReadUInt16();
-                            break;
+                            {
+                                int idx = br.ReadUInt16();
+                                dicCMAP[i] = idx < ushort.MaxValue ? idx : 0;
+                            }
+                           break;
                         case 2:
                             var n = br.ReadUInt16();
                             for (int i = 0; i < n; i++)
-                                dicCMAP[br.ReadChar()] = br.ReadUInt16();
-                            break;
+                            {
+                                char c = br.ReadChar();
+                                int idx = br.ReadUInt16();
+                                dicCMAP[c] = idx < ushort.MaxValue ? idx : 0;
+                            }
+                           break;
                         default:
                             throw new Exception("Unsupported mapping method");
                     }
