@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Cetera.IO;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,9 +8,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Text
 {
-    class MSBT : List<MSBT.Item>
+    public class MSBT : List<MSBT.Item>
     {
         [DebuggerDisplay("{Label,nq}: {Text,nq}")]
         public class Item
@@ -24,7 +25,7 @@ namespace Cetera
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct Header
         {
-            public Magic8 magic;
+            public String8 magic;
             public ByteOrder byteOrder;
             private short zeroes1;
             private MsbtEncoding encoding;
@@ -41,7 +42,7 @@ namespace Cetera
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct SectionHeader
         {
-            public Magic magic;
+            public String4 magic;
             public int size;
             private long padding;
         }
@@ -53,7 +54,7 @@ namespace Cetera
 
         public MSBT(Stream input)
         {
-            using (var br = new BinaryReader(input))
+            using (var br = new BinaryReaderX(input))
             {
                 header = br.ReadStruct<Header>();
                 if (header.magic != "MsgStdBn") throw new Exception("Not MSBT");

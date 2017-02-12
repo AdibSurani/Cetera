@@ -6,10 +6,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.IO;
 
-namespace Cetera
+namespace Cetera.Archive
 {
-    class DARC : List<DARC.Item>
+    public class DARC : List<DARC.Item>
     {
         [DebuggerDisplay("{Path}")]
         public class Item
@@ -22,7 +23,7 @@ namespace Cetera
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct Header
         {
-            public Magic magic;
+            public String4 magic;
             public ByteOrder byteOrder;
             public short headerSize;
             public int version;
@@ -45,7 +46,7 @@ namespace Cetera
 
         public DARC(Stream input)
         {
-            using (var br = new BinaryReader(input, Encoding.Unicode))
+            using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
 
@@ -65,7 +66,7 @@ namespace Cetera
                 {
                     var entry = lst[i];
                     br.BaseStream.Position = basePos + entry.FilenameOffset;
-                    var arcPath = br.ReadCString();
+                    var arcPath = br.ReadCStringW();
                     if (entry.IsFolder)
                     {
                         arcPath += '/';

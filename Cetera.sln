@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cetera", "Cetera.csproj", "{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cetera", "Cetera\Cetera.csproj", "{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeteraTestApp", "CeteraTestApp\CeteraTestApp.csproj", "{21846D15-7488-447B-ADF1-76AF6B688A41}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{21846D15-7488-447B-ADF1-76AF6B688A41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{21846D15-7488-447B-ADF1-76AF6B688A41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{21846D15-7488-447B-ADF1-76AF6B688A41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{21846D15-7488-447B-ADF1-76AF6B688A41}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

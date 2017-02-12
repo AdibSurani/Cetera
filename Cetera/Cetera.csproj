@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{948C73AD-D8E8-4A5E-86C9-2D239B74CCE7}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Cetera</RootNamespace>
     <AssemblyName>Cetera</AssemblyName>
@@ -32,6 +32,10 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -47,21 +51,23 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BCLIM.cs" />
-    <Compile Include="BFLIM.cs" />
+    <Compile Include="Image\JTEX.cs" />
+    <Compile Include="IO\BinaryReaderX.cs" />
+    <Compile Include="IO\BinaryWriterX.cs" />
+    <Compile Include="Compression\GZip.cs" />
+    <Compile Include="Font\BCFNT.cs" />
+    <Compile Include="Compression\CriWare.cs" />
+    <Compile Include="Font\XF.cs" />
+    <Compile Include="Image\BXLIM.cs" />
+    <Compile Include="Layout\BCLYT.cs" />
     <Compile Include="Common.cs" />
-    <Compile Include="DARC.cs" />
-    <Compile Include="ImageCommon.cs" />
-    <Compile Include="IOExtensions.cs" />
-    <Compile Include="OnionFS.cs" />
-    <Compile Include="TestAppForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="TestAppForm.Designer.cs">
-      <DependentUpon>TestAppForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="MSBT.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="Archive\DARC.cs" />
+    <Compile Include="Image\Common.cs" />
+    <Compile Include="Image\XI.cs" />
+    <Compile Include="IO\IOExtensions.cs" />
+    <Compile Include="Hardware\OnionFS.cs" />
+    <Compile Include="Image\Etc1.cs" />
+    <Compile Include="Text\MSBT.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -72,9 +78,6 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <EmbeddedResource Include="TestAppForm.resx">
-      <DependentUpon>TestAppForm.cs</DependentUpon>
-    </EmbeddedResource>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -88,11 +91,7 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="rg_etc1.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

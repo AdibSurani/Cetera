@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Cetera
+namespace Cetera.Hardware
 {
-    class OnionFS
+    public class OnionFS
     {
         public unsafe static string DoStuff(byte[] codeBin)
         {
