@@ -186,6 +186,30 @@ namespace CeteraTestApp
             }
         }
 
+        public void TestDaigassoImageConversion()
+        {
+            return;
+            foreach (var path in Directory.GetFiles(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\graphics", "*.arc.gz", SearchOption.AllDirectories))
+            {
+                var arc = new DARC(GZip.OpenRead(path));
+
+                var ms = GZip.OpenRead(path);
+                //using (var bw = new BinaryWriter()
+                var newpath = string.Join("_", path.Split('\\').SkipWhile(s => s != "graphics").Skip(1));
+                newpath = newpath.Substring(0, newpath.Length - 7);
+                foreach (var item in arc)
+                {
+                    if (Path.GetExtension(item.Path) != ".bclim") continue;
+                    var pngfile = @"C:\fti\dbbp\images\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png";
+                    if (!File.Exists(pngfile)) continue;
+
+                    var modified = (Bitmap)Image.FromFile(pngfile);
+                    var bclim = new BXLIM(new MemoryStream(item.Data));
+                    bclim.Image = (Bitmap)Image.FromFile(pngfile);
+                }
+            }
+        }
+
         public TestAppForm()
         {
             InitializeComponent();
