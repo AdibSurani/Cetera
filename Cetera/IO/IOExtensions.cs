@@ -16,5 +16,15 @@ namespace Cetera.IO
             fixed (byte* pBuffer = buffer)
                 return Marshal.PtrToStructure<T>((IntPtr)pBuffer);
         }
+
+        public static unsafe byte[] StructToArray<T>(this T item)
+        {
+            var buffer = new byte[Marshal.SizeOf(typeof(T))];
+            fixed (byte* pBuffer = buffer)
+            {
+                Marshal.StructureToPtr(item, (IntPtr)pBuffer, false);
+            }
+            return buffer;
+        }
     }
 }

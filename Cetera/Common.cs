@@ -56,7 +56,7 @@ namespace Cetera
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct NW4CHeader
+    public class NW4CHeader
     {
         public String4 magic;
         public ByteOrder byte_order;
@@ -70,14 +70,19 @@ namespace Cetera
     public class NW4CSection
     {
         public string Magic { get; }
-        public byte[] Data { get; }
+        public byte[] Data { get; set; }
         public object Object { get; set; }
-        
+
         public NW4CSection(string magic, byte[] data)
         {
             Magic = magic;
             Data = data;
         }
+    }
+
+    public class NW4CSectionList : List<NW4CSection>
+    {
+        public NW4CHeader Header { get; set; }
     }
 
     [DebuggerDisplay("{x}, {y}")]
