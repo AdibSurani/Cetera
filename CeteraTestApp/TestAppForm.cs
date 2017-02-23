@@ -30,6 +30,7 @@ namespace CeteraTestApp
             if (Path.GetFileName(path) == "code.bin")
             {
                 label1.Text = OnionFS.DoStuff(File.ReadAllBytes(path));
+                Debug.WriteLine(label1.Text);
             }
 
             switch (Path.GetExtension(path))
@@ -186,9 +187,57 @@ namespace CeteraTestApp
             }
         }
 
+        public void TestListDaigassoTxt1s()
+        {
+            var set = new HashSet<string>();
+            foreach (var path in Directory.GetFiles(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\graphics", "*.arc.gz", SearchOption.AllDirectories))
+            {
+                var arc = new DARC(GZip.OpenRead(path));
+                //if (arc.Count(x => Path.GetExtension(x.Path) == ".bclyt") < 1) throw new Exception();
+                foreach (var item in arc)
+                {
+                    if (!item.Path.EndsWith(".bclyt")) continue;
+                    //Debug.WriteLine(Path.GetFileName(path) + "\\" + Path.GetFileName(item.Path));
+                    var bclyt = new BCLYT(new MemoryStream(item.Data));
+                    if (!bclyt.sections.Any(sec => sec.Magic == "txt1")) continue;
+                    //if (Path.GetFileNameWithoutExtension(path) != Path.GetFileNameWithoutExtension(item.Path)) Debug.WriteLine(path);
+                    Debug.WriteLine(path.Substring(57) + "\\" + Path.GetFileName(item.Path));
+                    foreach (var txt in bclyt.sections.Where(s => s.Magic == "txt1"))
+                    {
+                        var tuple = (Tuple<BCLYT.Pane, BCLYT.TextBox, string>)(txt.Object);
+                        var txtBox = tuple.Item2;
+                        var txtPane = tuple.Item1;
+                        //var blah = txtBox.string_length == 0 ? "" : $" charLimit=\"{txtBox.string_length / 2 - 1}\"";
+                        if (txtBox.string_length != txtBox.buffer_length) throw new Exception();
+                        //Debug.WriteLine('\t' + $"<{txt.Magic} name=\"{txtPane.name}\" size=\"{txtPane.size.x},{txtPane.size.y}\"{blah} text=\"{tuple.Item3.Replace("\n", "\\n")}\">");
+                        var sb = new StringBuilder("\t<" + txt.Magic);
+                        sb.Append($" name=\"{txtPane.name}\"");
+                        sb.Append($" size=\"{txtPane.size}\"");
+                        sb.Append($" scale=\"{txtPane.scale}\"");
+                        sb.Append($" fontsize=\"{txtBox.font_size}\"");
+                        sb.Append($" kerning=\"{txtBox.font_kerning}\"");
+                        sb.Append($" postype0=\"{txtPane.base_position_type}\"");
+                        sb.Append($" postype1=\"{txtBox.position_type}\"");
+                        sb.Append($" alignment=\"{txtBox.text_align}\"");
+                        var fnt = (List<string>)bclyt.sections.First(sec => sec.Magic == "fnl1").Object;
+                        sb.Append($" font=\"{fnt[txtBox.fontID]}\"");
+                        sb.Append($" length=\"{txtBox.string_length}\"");
+                        sb.Append($" text=\"{tuple.Item3.Replace("\n", "\\n")}\"");
+                        sb.Append(">");
+                        Debug.WriteLine(sb.ToString());
+                        var x = tuple.Item3.Replace("\n", "\\n");
+                        if (x.Contains('|'))
+                            set.Add(x);
+                    }
+                    int k = 1;
+                }
+            }
+            Debug.WriteLine(string.Join("\n", set));
+        }
+
         public void TestDaigassoImageConversion()
         {
-            return;
+            //return;
             foreach (var path in Directory.GetFiles(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\graphics", "*.arc.gz", SearchOption.AllDirectories))
             {
                 var arc = new DARC(GZip.OpenRead(path));
@@ -200,12 +249,15 @@ namespace CeteraTestApp
                 foreach (var item in arc)
                 {
                     if (Path.GetExtension(item.Path) != ".bclim") continue;
-                    var pngfile = @"C:\fti\dbbp\images\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png";
-                    if (!File.Exists(pngfile)) continue;
+                    //var pngfile = @"C:\fti\dbbp\images\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png";
+                    //if (!File.Exists(pngfile)) continue;
 
-                    var modified = (Bitmap)Image.FromFile(pngfile);
+                    //var modified = (Bitmap)Image.FromFile(pngfile);
                     var bclim = new BXLIM(new MemoryStream(item.Data));
-                    bclim.Image = (Bitmap)Image.FromFile(pngfile);
+                    //bclim.Image = (Bitmap)Image.FromFile(pngfile);
+                    //if (bclim.Settings.Format != Format.HL88) continue;
+                    //bclim.Image.Save(@"C:\Users\Adib\Desktop\hilo8\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png");
+
                 }
             }
         }
@@ -235,7 +287,11 @@ namespace CeteraTestApp
             TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
             //TestDaigasso();
 
-            
+            //TestListDaigassoTxt1s();
+            //TestDaigassoImageConversion();
+
+
+
 
             return;
 

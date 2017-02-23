@@ -87,11 +87,19 @@ namespace Cetera
 
     [DebuggerDisplay("{x}, {y}")]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Vector2D { public float x, y; }
+    public struct Vector2D
+    {
+        public float x, y;
+        public override string ToString() => $"{x},{y}";
+    }
 
     [DebuggerDisplay("{x}, {y}, {z}")]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct Vector3D { public float x, y, z; }
+    public struct Vector3D
+    {
+        public float x, y, z;
+        public override string ToString() => $"{x},{y},{z}";
+    }
 
     class Common
     {

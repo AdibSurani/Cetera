@@ -23,7 +23,7 @@ namespace Cetera.Text
         enum MsbtEncoding : byte { UTF8, Unicode }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Header
+        class Header
         {
             public String8 magic;
             public ByteOrder byteOrder;
@@ -40,11 +40,21 @@ namespace Cetera.Text
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct SectionHeader
+        class SectionHeader
         {
             public String4 magic;
             public int size;
             private long padding;
+        }
+
+        enum AtomType { Char, ControlCode, EndCode };
+
+        class Atom
+        {
+            public AtomType atomType;
+            public char character;
+            public int id1, id2;
+            public byte[] bytes;
         }
 
         Header header;
@@ -83,7 +93,7 @@ namespace Cetera.Text
                         case "TXT2":
                             var textCount = br.ReadInt32();
                             var offsets = Enumerable.Range(0, textCount).Select(_ => br.ReadInt32()).Concat(new[] { section.size }).ToList();
-                            txt2 = offsets.Skip(1).Zip(offsets, (o1, o2) => br.ReadString(header.Encoding, o1 - o2)).ToList();
+                            txt2 = offsets.Skip(1).Zip(offsets, (o1, o2) => ReadMSBTString(br.ReadBytes(o1 - o2))).ToList();
                             break;
                         default:
                             throw new Exception("Unknown section");
@@ -100,6 +110,40 @@ namespace Cetera.Text
                            : from z in lbl1 orderby z.Item2 select z.Item1;
                 AddRange(labels.Zip(txt2, (lbl, txt) => new Item { Label = lbl, Text = txt }));
             }
+        }
+
+        string ReadMSBTString(byte[] bytes)
+        {
+            var sb = new StringBuilder();
+            using (var br = new BinaryReader(new MemoryStream(bytes), header.Encoding))
+            {
+                while (true)
+                {
+                    char c = br.ReadChar();
+                    sb.Append(c);
+                    if (c == 0xE)
+                    {
+                        sb.Append((char)br.ReadInt16());
+                        sb.Append((char)br.ReadInt16());
+                        int count = br.ReadInt16();
+                        sb.Append((char)count);
+                        for (int i = 0; i < count; i++)
+                        {
+                            sb.Append((char)br.ReadByte());
+                        }
+                    }
+                    else if (c == 0xF)
+                    {
+                        sb.Append((char)br.ReadInt16());
+                        sb.Append((char)br.ReadInt16());
+                    }
+                    else if (c == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            return sb.ToString();
         }
 
         // A quick test to check that the hashes are returned in the same order as that originally stored in the MSBT file

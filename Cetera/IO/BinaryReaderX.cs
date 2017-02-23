@@ -16,7 +16,6 @@ namespace Cetera.IO
         {
         }
 
-        public string ReadString(Encoding encoding, int length) => encoding.GetString(ReadBytes(length));
         public string ReadCStringA() => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)ReadByte()).TakeWhile(c => c != 0));
         public string ReadCStringW() => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)ReadInt16()).TakeWhile(c => c != 0));
         public unsafe T ReadStruct<T>() => ReadBytes(Marshal.SizeOf<T>()).ToStruct<T>();
