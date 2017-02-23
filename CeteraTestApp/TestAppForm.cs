@@ -37,7 +37,7 @@ namespace CeteraTestApp
             {
                 case ".bcfnt":
                     var fntz = new BCFNT(File.OpenRead(path));
-                    BackgroundImage = fntz.bmp;
+                    BackgroundImage = fntz.bmps[0];
                     break;
                 case ".xi":
                     BackgroundImage = new XI(File.OpenRead(path)).Image;
@@ -83,7 +83,7 @@ namespace CeteraTestApp
             var fnt = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\Basic.bcfnt.gz"));
             var fntSym = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\SisterSymbol.bcfnt.gz"));
             var fntRim = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\BasicRim.bcfnt.gz"));
-            var bmp = (Bitmap)Image.FromFile(@"C:\fti\daigasso_box.png");
+            var bmp = (Bitmap)Image.FromFile(@"C:\fti\other_files\daigasso_box.png");
             fnt.SetColor(Color.Black);
             fntSym.SetColor(Color.Black);            
             using (var g = Graphics.FromImage(bmp))
@@ -284,8 +284,8 @@ namespace CeteraTestApp
             //TestFile(@"C:\fti\sample_files\zor_cmbko4.jtex");
             //TestXF(@"C:\fti\sample_files\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\fti\sample_files\ms_normal.bclyt");
-            TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
-            //TestDaigasso();
+            //TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
+            TestDaigasso();
 
             //TestListDaigassoTxt1s();
             //TestDaigassoImageConversion();

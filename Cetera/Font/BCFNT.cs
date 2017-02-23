@@ -10,12 +10,17 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Cetera.Compression;
 using Cetera.Image;
+using Cetera.Properties;
 
 namespace Cetera.Font
 {
     public class BCFNT
     {
+        static Lazy<BCFNT> StdFntLoader = new Lazy<BCFNT>(() => new BCFNT(new MemoryStream(GZip.Decompress(Resources.cbf_std_bcfnt))));
+        public static BCFNT StandardFont => StdFntLoader.Value;
+
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         [DebuggerDisplay("[{left}, {glyph_width}, {char_width}]")]
         public struct CharWidthInfo
@@ -98,7 +103,7 @@ namespace Cetera.Font
 
         FINF finf;
         TGLP tglp;
-        public Bitmap bmp;
+        public Bitmap[] bmps;
         ImageAttributes attr = new ImageAttributes();
         List<CharWidthInfo> lstCWDH = new List<CharWidthInfo>();
         Dictionary<char, int> dicCMAP = new Dictionary<char, int>();
@@ -135,10 +140,10 @@ namespace Cetera.Font
             int cellRow = (index % cellsPerSheet) / tglp.num_columns;
             int cellCol = index % tglp.num_columns;
             int xOffset = cellCol * (tglp.cell_width + 1);
-            int yOffset = sheetNum * tglp.sheet_height + cellRow * (tglp.cell_height + 1);
+            int yOffset = cellRow * (tglp.cell_height + 1);
 
             if (widthInfo.glyph_width > 0)
-               g.DrawImage(bmp,
+               g.DrawImage(bmps[sheetNum],
                    new[] { new PointF(x + widthInfo.left * scaleX, y),
                        new PointF(x + (widthInfo.left + widthInfo.glyph_width) * scaleX, y),
                        new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY) },
@@ -166,17 +171,13 @@ namespace Cetera.Font
                 // read image data
                 br.BaseStream.Position = tglp.sheet_data_offset;
                 int width = tglp.sheet_width;
-                int height = tglp.sheet_height * tglp.num_sheets;
-                var bytes = br.ReadBytes(tglp.sheet_size * tglp.num_sheets);
-                var settings = new Settings
-                {
-                   Width = width,
-                   Height = height,
-                   Format = Settings.ConvertFormat(tglp.sheet_image_format),
-                   PadToPowerOf2 = false
-                };
-                settings.SetFormat(tglp.sheet_image_format);
-                bmp = Image.Common.Load(bytes, settings);
+                int height = tglp.sheet_height;
+                bmps = Enumerable.Range(0, tglp.num_sheets).Select(_ => Image.Common.Load(br.ReadBytes(tglp.sheet_size), new Settings
+                    {
+                        Width = width,
+                        Height = height,
+                        Format = Settings.ConvertFormat(tglp.sheet_image_format)
+                    })).ToArray();
 
                 // read CWDH
                 for (int offset = finf.cwdh_offset; offset != 0; )
@@ -206,8 +207,8 @@ namespace Cetera.Font
                         case 1:
                             for (char i = cmap.code_begin; i <= cmap.code_end; i++)
                             {
-                                int idx = br.ReadUInt16();
-                                dicCMAP[i] = idx < ushort.MaxValue ? idx : 0;
+                                int idx = br.ReadInt16();
+                                if (idx != -1) dicCMAP[i] = idx;
                             }
                            break;
                         case 2:
@@ -215,8 +216,8 @@ namespace Cetera.Font
                             for (int i = 0; i < n; i++)
                             {
                                 char c = br.ReadChar();
-                                int idx = br.ReadUInt16();
-                                dicCMAP[c] = idx < ushort.MaxValue ? idx : 0;
+                                int idx = br.ReadInt16();
+                                if (idx != -1) dicCMAP[c] = idx;
                             }
                            break;
                         default:
