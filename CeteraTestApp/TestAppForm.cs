@@ -51,7 +51,7 @@ namespace CeteraTestApp
                     break;
                 case ".msbt":
                     var msbt = new MSBT(File.OpenRead(path));
-                    label1.Text = string.Join("\r\n", msbt.Select(i => $"{i.Label}: {i.Text.Replace("\0", "\\0").Replace("\n", "\\n")}"));
+                    label1.Text = string.Join("\r\n", msbt.Select(i => $"{i.Label}: {string.Concat(MSBT.ToAtoms(i.Text)).Replace("\n", "\\n")}"));
                     break;
                 case ".arc":
                     var arc = new DARC(File.OpenRead(path));
