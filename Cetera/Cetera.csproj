@@ -51,8 +51,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Compression\Huffman.cs" />
     <Compile Include="Compression\LZ10.cs" />
     <Compile Include="Compression\LZ11.cs" />
+    <Compile Include="Compression\LZSS.cs" />
+    <Compile Include="Compression\RLE.cs" />
     <Compile Include="Image\JTEX.cs" />
     <Compile Include="IO\BinaryReaderX.cs" />
     <Compile Include="IO\BinaryWriterX.cs" />
