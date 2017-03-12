@@ -230,6 +230,7 @@ namespace Cetera.Compression
                 }
             }
 
+            outstream.Position = 0;
             return new BinaryReaderX(outstream).ReadBytes((int)outstream.Length);
         }
 
