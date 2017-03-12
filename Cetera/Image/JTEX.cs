@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -25,17 +25,17 @@ namespace Cetera.Image
 
         public Header JTEXHeader { get; private set; }
         public Bitmap Image { get; set; }
-        public ImageSettings Settings { get; set; }
+        public Settings Settings { get; set; }
 
         public JTEX(Stream input)
         {
             using (var br = new BinaryReaderX(input))
             {
-                var header = br.ReadStruct<Header>();
-                Settings = new ImageSettings { Width = header.width, Height = header.height };
-                Settings.SetFormat(header.format);
-                var tex = br.ReadBytes(header.unk3[0]); // bytes to read?
-                Image = Common.Load(tex, Settings);
+                JTEXHeader = br.ReadStruct<Header>();
+                Settings = new Settings { Width = JTEXHeader.width, Height = JTEXHeader.height };
+                Settings.SetFormat(JTEXHeader.format);
+                var texture = br.ReadBytes(JTEXHeader.unk3[0]); // bytes to read?
+                Image = Common.Load(texture, Settings);
             }
         }
 
@@ -47,10 +47,10 @@ namespace Cetera.Image
                 modifiedJTEXHeader.width = (short)Image.Width;
                 modifiedJTEXHeader.height = (short)Image.Height;
 
-                var settings = new ImageSettings();
+                var settings = new Settings();
                 settings.Width = modifiedJTEXHeader.width;
                 settings.Height = modifiedJTEXHeader.height;
-                settings.Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format);
+                settings.Format = Settings.ConvertFormat(modifiedJTEXHeader.format);
 
                 byte[] texture = Common.Save(Image, settings);
                 modifiedJTEXHeader.unk3[0] = texture.Length;

@@ -78,6 +78,8 @@ namespace Cetera.Layout
             using (var sr = new BinaryReaderX(input))
             {
                 sections = sr.ReadSections();
+                NW4CSection last = null;
+                List<string> fnl = null;
 
                 foreach (var sec in sections)
                 {
@@ -130,12 +132,20 @@ namespace Cetera.Layout
                                 // incomplete
                                 break;
                             case "usd1":
+                                if (last != null && last.Magic == "txt1")
+                                {
+                                    var x = string.Concat(sec.Data.Skip(16).Select(b => (char)b)).TrimEnd('\0').Replace("\0", "|");
+                                    var t = ((Tuple<Pane, TextBox, string>)last.Object);
+                                    //if (t.Item3 != "") throw new Exception();
+                                    last.Object = Tuple.Create(t.Item1, t.Item2, x);
+                                }
                                 // incomplete
                                 break;
                             default:
                                 throw new NotSupportedException($"Unknown magic {sec.Magic}");
                         }
                     }
+                    last = sec;
                 }
 
                 var txts = sections.Where(z => z.Magic == "txt1").Select(z => z.Object).ToList();

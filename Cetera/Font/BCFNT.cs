@@ -1,4 +1,4 @@
-using Cetera.IO;
+﻿using Cetera.IO;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -143,18 +143,18 @@ namespace Cetera.Font
             int yOffset = cellRow * (tglp.cell_height + 1);
 
             if (widthInfo.glyph_width > 0)
-                g.DrawImage(bmps[sheetNum],
-                    new[] { new PointF(x + widthInfo.left * scaleX, y),
+               g.DrawImage(bmps[sheetNum],
+                   new[] { new PointF(x + widthInfo.left * scaleX, y),
                        new PointF(x + (widthInfo.left + widthInfo.glyph_width) * scaleX, y),
                        new PointF(x + widthInfo.left * scaleX, y + tglp.cell_height * scaleY) },
-                    new RectangleF(xOffset + 1, yOffset + 1, widthInfo.glyph_width, tglp.cell_height),
-                    GraphicsUnit.Pixel,
-                    attr);
+                   new RectangleF(xOffset + 1, yOffset + 1, widthInfo.glyph_width, tglp.cell_height),
+                   GraphicsUnit.Pixel,
+                   attr);
         }
 
         public float MeasureString(string text, char stopChar, float scale = 1.0f)
         {
-            return text.TakeWhile(c => c != stopChar).Sum(c => GetWidthInfo(c).char_width) * scale;
+           return text.TakeWhile(c => c != stopChar).Sum(c => GetWidthInfo(c).char_width) * scale;
         }
 
         public BCFNT(Stream input)
@@ -172,15 +172,15 @@ namespace Cetera.Font
                 br.BaseStream.Position = tglp.sheet_data_offset;
                 int width = tglp.sheet_width;
                 int height = tglp.sheet_height;
-                bmps = Enumerable.Range(0, tglp.num_sheets).Select(_ => Image.Common.Load(br.ReadBytes(tglp.sheet_size), new ImageSettings
-                {
-                    Width = width,
-                    Height = height,
-                    Format = ImageSettings.ConvertFormat(tglp.sheet_image_format)
-                })).ToArray();
+                bmps = Enumerable.Range(0, tglp.num_sheets).Select(_ => Image.Common.Load(br.ReadBytes(tglp.sheet_size), new Settings
+                    {
+                        Width = width,
+                        Height = height,
+                        Format = Settings.ConvertFormat(tglp.sheet_image_format)
+                    })).ToArray();
 
                 // read CWDH
-                for (int offset = finf.cwdh_offset; offset != 0;)
+                for (int offset = finf.cwdh_offset; offset != 0; )
                 {
                     br.BaseStream.Position = offset - 8;
                     var cwdh = br.ReadStruct<CWDH>();
@@ -210,7 +210,7 @@ namespace Cetera.Font
                                 int idx = br.ReadInt16();
                                 if (idx != -1) dicCMAP[i] = idx;
                             }
-                            break;
+                           break;
                         case 2:
                             var n = br.ReadUInt16();
                             for (int i = 0; i < n; i++)
@@ -219,7 +219,7 @@ namespace Cetera.Font
                                 int idx = br.ReadInt16();
                                 if (idx != -1) dicCMAP[c] = idx;
                             }
-                            break;
+                           break;
                         default:
                             throw new Exception("Unsupported mapping method");
                     }

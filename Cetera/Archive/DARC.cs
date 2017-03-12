@@ -34,7 +34,7 @@ namespace Cetera.Archive
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public struct TableEntry
+        public class TableEntry
         {
             private int filenameOffset;
             public int fileOffset;
@@ -85,6 +85,11 @@ namespace Cetera.Archive
 
                 RemoveAll(item => item.Path.Last() == '/');
             }
+        }
+
+        public byte[] Rebuild()
+        {
+            throw new NotImplementedException();
         }
     }
 }

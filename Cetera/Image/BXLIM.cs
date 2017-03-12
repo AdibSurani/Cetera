@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -37,35 +37,36 @@ namespace Cetera.Image
             ETC1, ETC1A4, L4, A4
         }
 
-        private string magic = string.Empty;
+        NW4CSectionList sections;
         public BCLIMImageHeader BCLIMHeader { get; private set; }
         public BFLIMImageHeader BFLIMHeader { get; private set; }
         public Bitmap Image { get; set; }
-        public ImageSettings Settings { get; set; }
+        public Settings Settings { get; set; }
         public short UnknownShort { get; set; }
 
         public BXLIM(Stream input)
         {
+            int k = 1;
             using (var br = new BinaryReaderX(input))
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
-                var imagData = br.ReadSections(out magic).Single().Data;
-                switch (magic)
+                sections = br.ReadSections();
+                switch (sections.Header.magic)
                 {
                     case "CLIM":
-                        BCLIMHeader = imagData.ToStruct<BCLIMImageHeader>();
-                        Settings = new ImageSettings { Width = BCLIMHeader.width, Height = BCLIMHeader.height, Orientation = BCLIMHeader.orientation };
+                        BCLIMHeader = sections[0].Data.ToStruct<BCLIMImageHeader>();
+                        Settings = new Settings { Width = BCLIMHeader.width, Height = BCLIMHeader.height, Orientation = BCLIMHeader.orientation };
                         Settings.SetFormat(BCLIMHeader.format);
                         UnknownShort = BCLIMHeader.unknown;
                         break;
                     case "FLIM":
-                        BFLIMHeader = imagData.ToStruct<BFLIMImageHeader>();
-                        Settings = new ImageSettings { Width = BFLIMHeader.width, Height = BFLIMHeader.height, Orientation = BFLIMHeader.orientation };
+                        BFLIMHeader = sections[0].Data.ToStruct<BFLIMImageHeader>();
+                        Settings = new Settings { Width = BFLIMHeader.width, Height = BFLIMHeader.height, Orientation = BFLIMHeader.orientation };
                         Settings.SetFormat(BFLIMHeader.format);
                         UnknownShort = BFLIMHeader.unknown;
                         break;
                     default:
-                        throw new NotSupportedException($"Unknown image format {magic}");
+                        throw new NotSupportedException($"Unknown image format {sections.Header.magic}");
                 }
                 Image = Common.Load(tex, Settings);
             }
@@ -75,16 +76,16 @@ namespace Cetera.Image
         {
             using (var bw = new BinaryWriterX(output))
             {
-                var settings = new ImageSettings();
+                var settings = new Settings();
                 byte[] texture;
 
-                switch (magic)
+                switch (sections.Header.magic)
                 {
                     case "CLIM":
                         settings.Width = BCLIMHeader.width;
                         settings.Height = BCLIMHeader.height;
                         settings.Orientation = BCLIMHeader.orientation;
-                        settings.Format = ImageSettings.ConvertFormat(BCLIMHeader.format);
+                        settings.Format = Settings.ConvertFormat(BCLIMHeader.format);
                         texture = Common.Save(Image, settings);
                         bw.Write(texture);
 
@@ -92,17 +93,17 @@ namespace Cetera.Image
                         var modifiedBCLIMHeader = BCLIMHeader;
                         modifiedBCLIMHeader.width = (short)Image.Width;
                         modifiedBCLIMHeader.height = (short)Image.Height;
-                        //modifiedHeader.image_size = texture.Length;
-                        //modifiedHeader.file_size = texture.Length + 40;
                         BCLIMHeader = modifiedBCLIMHeader;
-
-                        bw.WriteStruct(BCLIMHeader);
+                        sections[0].Data = BCLIMHeader.StructToArray();
+                        sections.Header.file_size = texture.Length + 40;
+                        bw.WriteSections(sections);
+                        bw.Write(texture.Length);
                         break;
                     case "FLIM":
                         settings.Width = BFLIMHeader.width;
                         settings.Height = BFLIMHeader.height;
                         settings.Orientation = BFLIMHeader.orientation;
-                        settings.Format = ImageSettings.ConvertFormat(BFLIMHeader.format);
+                        settings.Format = Settings.ConvertFormat(BFLIMHeader.format);
                         texture = Common.Save(Image, settings);
                         bw.Write(texture);
 
@@ -110,14 +111,14 @@ namespace Cetera.Image
                         var modifiedBFLIMHeader = BFLIMHeader;
                         modifiedBFLIMHeader.width = (short)Image.Width;
                         modifiedBFLIMHeader.height = (short)Image.Height;
-                        //modifiedBFLIMHeader.image_size = texture.Length;
-                        //modifiedBFLIMHeader.file_size = texture.Length + 40;
                         BFLIMHeader = modifiedBFLIMHeader;
-
-                        bw.WriteStruct(BFLIMHeader);
+                        sections[0].Data = BFLIMHeader.StructToArray();
+                        sections.Header.file_size = texture.Length + 40;
+                        bw.WriteSections(sections);
+                        bw.Write(texture.Length);
                         break;
                     default:
-                        throw new NotSupportedException($"Unknown image format {magic}");
+                        throw new NotSupportedException($"Unknown image format {sections.Header.magic}");
                 }
             }
         }
