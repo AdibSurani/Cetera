@@ -24,19 +24,19 @@ namespace Cetera.Compression
                 int sizeAndMethod = br.ReadInt32();
                 int size = sizeAndMethod / 8;
                 var method = (Method)(sizeAndMethod % 8);
-                var result = new List<byte>();
+
                 switch (method)
                 {
                     case Method.NoCompression:
                         return br.ReadBytes(size);
                     case Method.LZSS:
-                        return LZSS.Decompress(new MemoryStream(br.ReadBytes((int)br.BaseStream.Length - 4)), size);
+                        return LZSS.Decompress(br.BaseStream, size);
                     case Method.Huffman4Bit:
                     case Method.Huffman8Bit:
                         int num_bits = method == Method.Huffman4Bit ? 4 : 8;
-                        return Huffman.Decompress(new MemoryStream(br.ReadBytes((int)br.BaseStream.Length - 4)), num_bits, size);
+                        return Huffman.Decompress(br.BaseStream, num_bits, size);
                     case Method.RLE:
-                        return RLE.Decompress(new MemoryStream(br.ReadBytes((int)br.BaseStream.Length - 4)), size);
+                        return RLE.Decompress(br.BaseStream, size);
                     default:
                         throw new NotSupportedException($"Unknown compression method {method}");
                 }

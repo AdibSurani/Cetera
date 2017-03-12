@@ -13,17 +13,21 @@ namespace Cetera.Compression
         //supports 4bit & 8bit
         public static byte[] Decompress(Stream instream, int num_bits, long decompressedLength)
         {
+            int count = 0;
             using (BinaryReaderX br = new BinaryReaderX(instream))
             {
                 List<byte> result = new List<byte>();
 
-                byte tree_size = br.ReadByte();
-                byte tree_root = br.ReadByte();
-                byte[] tree_buffer = br.ReadBytes(tree_size * 2);
+                byte tree_size = br.ReadByte(); count++;
+                byte tree_root = br.ReadByte(); count++;
+                byte[] tree_buffer = br.ReadBytes(tree_size * 2); count += tree_size * 2;
 
                 for (int i = 0, code = 0, next = 0, pos = tree_root; ; i++)
                 {
-                    if (i % 32 == 0) code = br.ReadInt32();
+                    if (i % 32 == 0)
+                    {
+                        code = br.ReadInt32(); count += 4;
+                    }
                     next += (pos & 0x3F) * 2 + 2;
                     int direction = (code >> (31 - i)) % 2 == 0 ? 2 : 1;
                     var leaf = (pos >> 5 >> direction) % 2 != 0;
