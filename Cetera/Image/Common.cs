@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -24,7 +24,7 @@ namespace Cetera.Image
         Transpose = 8
     }
 
-    public class Settings
+    public class ImageSettings
     {
         public int Width { get; set; }
         public int Height { get; set; }
@@ -138,7 +138,7 @@ namespace Cetera.Image
             }
         }
 
-        static IEnumerable<Point> GetPointSequence(Settings settings)
+        static IEnumerable<Point> GetPointSequence(ImageSettings settings)
         {
             int strideWidth = (settings.Width + 7) & ~7;
             int strideHeight = (settings.Height + 7) & ~7;
@@ -175,7 +175,7 @@ namespace Cetera.Image
             }
         }
 
-        public unsafe static Bitmap Load(byte[] tex, Settings settings)
+        public unsafe static Bitmap Load(byte[] tex, ImageSettings settings)
         {
             int width = settings.Width, height = settings.Height;
             var colors = GetColorsFromTexture(tex, settings.Format);
@@ -199,8 +199,8 @@ namespace Cetera.Image
             bmp.UnlockBits(data);
             return bmp;
         }
-        
-        public static byte[] Save(Bitmap bmp, Settings settings)
+
+        public static byte[] Save(Bitmap bmp, ImageSettings settings)
         {
             settings.Width = bmp.Width;
             settings.Height = bmp.Height;

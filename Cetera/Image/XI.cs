@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -50,7 +50,7 @@ namespace Cetera.Image
         }
 
         public Bitmap Image { get; set; }
-        public Settings Settings { get; set; }
+        public ImageSettings Settings { get; set; }
         public int CombineFormat { get; set; }
 
         public XI(Stream input)
@@ -58,7 +58,7 @@ namespace Cetera.Image
             using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
-                Settings = new Settings { Width = header.width, Height = header.height, Orientation = header.orientation, PadToPowerOf2 = false };
+                Settings = new ImageSettings { Width = header.width, Height = header.height, Orientation = header.orientation, PadToPowerOf2 = false };
                 Settings.SetFormat(header.imageFormat);
                 CombineFormat = header.combineFormat;
 

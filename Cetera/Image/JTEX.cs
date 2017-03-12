@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -10,7 +10,7 @@ namespace Cetera.Image
     public class JTEX
     {
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct Header
+        public struct Header
         {
             public String4 magic;
             public int unk1;
@@ -23,18 +23,41 @@ namespace Cetera.Image
             public int[] unk3;
         }
 
+        public Header JTEXHeader { get; private set; }
         public Bitmap Image { get; set; }
-        public Settings Settings { get; set; }
+        public ImageSettings Settings { get; set; }
 
         public JTEX(Stream input)
         {
             using (var br = new BinaryReaderX(input))
             {
                 var header = br.ReadStruct<Header>();
-                Settings = new Settings { Width = header.width, Height = header.height };
+                Settings = new ImageSettings { Width = header.width, Height = header.height };
                 Settings.SetFormat(header.format);
                 var tex = br.ReadBytes(header.unk3[0]); // bytes to read?
                 Image = Common.Load(tex, Settings);
+            }
+        }
+
+        public void Save(Stream output)
+        {
+            using (var bw = new BinaryWriterX(output))
+            {
+                var modifiedJTEXHeader = JTEXHeader;
+                modifiedJTEXHeader.width = (short)Image.Width;
+                modifiedJTEXHeader.height = (short)Image.Height;
+
+                var settings = new ImageSettings();
+                settings.Width = modifiedJTEXHeader.width;
+                settings.Height = modifiedJTEXHeader.height;
+                settings.Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format);
+
+                byte[] texture = Common.Save(Image, settings);
+                modifiedJTEXHeader.unk3[0] = texture.Length;
+                JTEXHeader = modifiedJTEXHeader;
+
+                bw.WriteStruct(JTEXHeader);
+                bw.Write(texture);
             }
         }
     }
