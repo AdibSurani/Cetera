@@ -14,7 +14,7 @@ namespace Cetera.Compression
         public static byte[] Decompress(Stream instream, int num_bits, long decompressedLength)
         {
             int count = 0;
-            using (BinaryReaderX br = new BinaryReaderX(instream))
+            using (BinaryReaderX br = new BinaryReaderX(instream, true))
             {
                 List<byte> result = new List<byte>();
 

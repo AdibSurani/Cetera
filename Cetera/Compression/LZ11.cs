@@ -12,7 +12,7 @@ namespace Cetera.Compression
     {
         public static byte[] Decompress(Stream stream)
         {
-            using (BinaryReaderX br = new BinaryReaderX(stream))
+            using (BinaryReaderX br = new BinaryReaderX(stream, true))
             {
                 uint length = br.ReadUInt32() >> 8;
                 byte[] result = new byte[length];
