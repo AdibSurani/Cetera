@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -41,12 +41,11 @@ namespace Cetera.Image
         public BCLIMImageHeader BCLIMHeader { get; private set; }
         public BFLIMImageHeader BFLIMHeader { get; private set; }
         public Bitmap Image { get; set; }
-        public Settings Settings { get; set; }
+        public ImageSettings Settings { get; set; }
         public short UnknownShort { get; set; }
 
         public BXLIM(Stream input)
         {
-            int k = 1;
             using (var br = new BinaryReaderX(input))
             {
                 var tex = br.ReadBytes((int)br.BaseStream.Length - 40);
@@ -55,13 +54,13 @@ namespace Cetera.Image
                 {
                     case "CLIM":
                         BCLIMHeader = sections[0].Data.ToStruct<BCLIMImageHeader>();
-                        Settings = new Settings { Width = BCLIMHeader.width, Height = BCLIMHeader.height, Orientation = BCLIMHeader.orientation };
+                        Settings = new ImageSettings { Width = BCLIMHeader.width, Height = BCLIMHeader.height, Orientation = BCLIMHeader.orientation };
                         Settings.SetFormat(BCLIMHeader.format);
                         UnknownShort = BCLIMHeader.unknown;
                         break;
                     case "FLIM":
                         BFLIMHeader = sections[0].Data.ToStruct<BFLIMImageHeader>();
-                        Settings = new Settings { Width = BFLIMHeader.width, Height = BFLIMHeader.height, Orientation = BFLIMHeader.orientation };
+                        Settings = new ImageSettings { Width = BFLIMHeader.width, Height = BFLIMHeader.height, Orientation = BFLIMHeader.orientation };
                         Settings.SetFormat(BFLIMHeader.format);
                         UnknownShort = BFLIMHeader.unknown;
                         break;
@@ -76,7 +75,7 @@ namespace Cetera.Image
         {
             using (var bw = new BinaryWriterX(output))
             {
-                var settings = new Settings();
+                var settings = new ImageSettings();
                 byte[] texture;
 
                 switch (sections.Header.magic)
@@ -85,7 +84,7 @@ namespace Cetera.Image
                         settings.Width = BCLIMHeader.width;
                         settings.Height = BCLIMHeader.height;
                         settings.Orientation = BCLIMHeader.orientation;
-                        settings.Format = Settings.ConvertFormat(BCLIMHeader.format);
+                        settings.Format = ImageSettings.ConvertFormat(BCLIMHeader.format);
                         texture = Common.Save(Image, settings);
                         bw.Write(texture);
 
@@ -103,7 +102,7 @@ namespace Cetera.Image
                         settings.Width = BFLIMHeader.width;
                         settings.Height = BFLIMHeader.height;
                         settings.Orientation = BFLIMHeader.orientation;
-                        settings.Format = Settings.ConvertFormat(BFLIMHeader.format);
+                        settings.Format = ImageSettings.ConvertFormat(BFLIMHeader.format);
                         texture = Common.Save(Image, settings);
                         bw.Write(texture);
 
