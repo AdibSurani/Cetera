@@ -16,7 +16,6 @@ namespace Cetera.IO
         {
         }
 
-        public string ReadString(Encoding encoding, int length) => encoding.GetString(ReadBytes(length));
         public string ReadCStringA() => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)ReadByte()).TakeWhile(c => c != 0));
         public string ReadCStringW() => string.Concat(Enumerable.Range(0, 999).Select(_ => (char)ReadInt16()).TakeWhile(c => c != 0));
         public unsafe T ReadStruct<T>() => ReadBytes(Marshal.SizeOf<T>()).ToStruct<T>();
@@ -37,24 +36,14 @@ namespace Cetera.IO
             }
         }
 
-        public List<NW4CSection> ReadSections(out string magic)
+        public NW4CSectionList ReadSections()
         {
-            var header = ReadStruct<NW4CHeader>();
-            magic = header.magic;
-            return (from _ in Enumerable.Range(0, header.section_count)
-                    let magic1 = ReadStruct<String4>()
-                    let data = ReadBytes(ReadInt32() - 8)
-                    select new NW4CSection(magic1, data)
-                    ).ToList();
-        }
-
-        public List<NW4CSection> ReadSections()
-        {
-            return (from _ in Enumerable.Range(0, ReadStruct<NW4CHeader>().section_count)
-                    let magic = ReadStruct<String4>()
-                    let data = ReadBytes(ReadInt32() - 8)
-                    select new NW4CSection(magic, data)
-                    ).ToList();
+            var lst = new NW4CSectionList { Header = ReadStruct<NW4CHeader>() };
+            lst.AddRange(from _ in Enumerable.Range(0, lst.Header.section_count)
+                         let magic1 = ReadStruct<String4>()
+                         let data = ReadBytes(ReadInt32() - 8)
+                         select new NW4CSection(magic1, data));
+            return lst;
         }
     }
 }

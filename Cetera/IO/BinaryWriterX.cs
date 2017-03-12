@@ -46,5 +46,16 @@ namespace Cetera.IO
                 nibble = -1;
             }
         }
+
+        public void WriteSections(NW4CSectionList sections)
+        {
+            WriteStruct(sections.Header);
+            foreach (var sec in sections)
+            {
+                Write(Encoding.ASCII.GetBytes(sec.Magic)); // will need a magic->byte[] converter eventually
+                Write(sec.Data.Length + 8);
+                Write(sec.Data);
+            }
+        }
     }
 }

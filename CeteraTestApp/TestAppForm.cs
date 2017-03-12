@@ -30,13 +30,14 @@ namespace CeteraTestApp
             if (Path.GetFileName(path) == "code.bin")
             {
                 label1.Text = OnionFS.DoStuff(File.ReadAllBytes(path));
+                Debug.WriteLine(label1.Text);
             }
 
             switch (Path.GetExtension(path))
             {
                 case ".bcfnt":
                     var fntz = new BCFNT(File.OpenRead(path));
-                    BackgroundImage = fntz.bmp;
+                    BackgroundImage = fntz.bmps[0];
                     break;
                 case ".xi":
                     BackgroundImage = new XI(File.OpenRead(path)).Image;
@@ -50,7 +51,7 @@ namespace CeteraTestApp
                     break;
                 case ".msbt":
                     var msbt = new MSBT(File.OpenRead(path));
-                    label1.Text = string.Join("\r\n", msbt.Select(i => $"{i.Label}: {i.Text.Replace("\0", "\\0").Replace("\n", "\\n")}"));
+                    label1.Text = string.Join("\r\n", msbt.Select(i => $"{i.Label}: {string.Concat(MSBT.ToAtoms(i.Text)).Replace("\n", "\\n")}"));
                     break;
                 case ".arc":
                     var arc = new DARC(File.OpenRead(path));
@@ -82,7 +83,7 @@ namespace CeteraTestApp
             var fnt = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\Basic.bcfnt.gz"));
             var fntSym = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\SisterSymbol.bcfnt.gz"));
             var fntRim = new BCFNT(GZip.OpenRead(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\font\BasicRim.bcfnt.gz"));
-            var bmp = (Bitmap)Image.FromFile(@"C:\fti\daigasso_box.png");
+            var bmp = (Bitmap)Image.FromFile(@"C:\fti\other_files\daigasso_box.png");
             fnt.SetColor(Color.Black);
             fntSym.SetColor(Color.Black);            
             using (var g = Graphics.FromImage(bmp))
@@ -186,6 +187,81 @@ namespace CeteraTestApp
             }
         }
 
+        public void TestListDaigassoTxt1s()
+        {
+            var set = new HashSet<string>();
+            foreach (var path in Directory.GetFiles(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\graphics", "*.arc.gz", SearchOption.AllDirectories))
+            {
+                var arc = new DARC(GZip.OpenRead(path));
+                //if (arc.Count(x => Path.GetExtension(x.Path) == ".bclyt") < 1) throw new Exception();
+                foreach (var item in arc)
+                {
+                    if (!item.Path.EndsWith(".bclyt")) continue;
+                    //Debug.WriteLine(Path.GetFileName(path) + "\\" + Path.GetFileName(item.Path));
+                    var bclyt = new BCLYT(new MemoryStream(item.Data));
+                    if (!bclyt.sections.Any(sec => sec.Magic == "txt1")) continue;
+                    //if (Path.GetFileNameWithoutExtension(path) != Path.GetFileNameWithoutExtension(item.Path)) Debug.WriteLine(path);
+                    Debug.WriteLine(path.Substring(57) + "\\" + Path.GetFileName(item.Path));
+                    foreach (var txt in bclyt.sections.Where(s => s.Magic == "txt1"))
+                    {
+                        var tuple = (Tuple<BCLYT.Pane, BCLYT.TextBox, string>)(txt.Object);
+                        var txtBox = tuple.Item2;
+                        var txtPane = tuple.Item1;
+                        //var blah = txtBox.string_length == 0 ? "" : $" charLimit=\"{txtBox.string_length / 2 - 1}\"";
+                        if (txtBox.string_length != txtBox.buffer_length) throw new Exception();
+                        //Debug.WriteLine('\t' + $"<{txt.Magic} name=\"{txtPane.name}\" size=\"{txtPane.size.x},{txtPane.size.y}\"{blah} text=\"{tuple.Item3.Replace("\n", "\\n")}\">");
+                        var sb = new StringBuilder("\t<" + txt.Magic);
+                        sb.Append($" name=\"{txtPane.name}\"");
+                        sb.Append($" size=\"{txtPane.size}\"");
+                        sb.Append($" scale=\"{txtPane.scale}\"");
+                        sb.Append($" fontsize=\"{txtBox.font_size}\"");
+                        sb.Append($" kerning=\"{txtBox.font_kerning}\"");
+                        sb.Append($" postype0=\"{txtPane.base_position_type}\"");
+                        sb.Append($" postype1=\"{txtBox.position_type}\"");
+                        sb.Append($" alignment=\"{txtBox.text_align}\"");
+                        var fnt = (List<string>)bclyt.sections.First(sec => sec.Magic == "fnl1").Object;
+                        sb.Append($" font=\"{fnt[txtBox.fontID]}\"");
+                        sb.Append($" length=\"{txtBox.string_length}\"");
+                        sb.Append($" text=\"{tuple.Item3.Replace("\n", "\\n")}\"");
+                        sb.Append(">");
+                        Debug.WriteLine(sb.ToString());
+                        var x = tuple.Item3.Replace("\n", "\\n");
+                        if (x.Contains('|'))
+                            set.Add(x);
+                    }
+                    int k = 1;
+                }
+            }
+            Debug.WriteLine(string.Join("\n", set));
+        }
+
+        public void TestDaigassoImageConversion()
+        {
+            //return;
+            foreach (var path in Directory.GetFiles(@"C:\fti\dumps\daigassoupdate\ExtractedRomFS\patch\graphics", "*.arc.gz", SearchOption.AllDirectories))
+            {
+                var arc = new DARC(GZip.OpenRead(path));
+
+                var ms = GZip.OpenRead(path);
+                //using (var bw = new BinaryWriter()
+                var newpath = string.Join("_", path.Split('\\').SkipWhile(s => s != "graphics").Skip(1));
+                newpath = newpath.Substring(0, newpath.Length - 7);
+                foreach (var item in arc)
+                {
+                    if (Path.GetExtension(item.Path) != ".bclim") continue;
+                    //var pngfile = @"C:\fti\dbbp\images\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png";
+                    //if (!File.Exists(pngfile)) continue;
+
+                    //var modified = (Bitmap)Image.FromFile(pngfile);
+                    var bclim = new BXLIM(new MemoryStream(item.Data));
+                    //bclim.Image = (Bitmap)Image.FromFile(pngfile);
+                    //if (bclim.Settings.Format != Format.HL88) continue;
+                    //bclim.Image.Save(@"C:\Users\Adib\Desktop\hilo8\" + $"{newpath}_{Path.GetFileNameWithoutExtension(item.Path)}.png");
+
+                }
+            }
+        }
+
         public TestAppForm()
         {
             InitializeComponent();
@@ -208,10 +284,14 @@ namespace CeteraTestApp
             //TestFile(@"C:\fti\sample_files\zor_cmbko4.jtex");
             //TestXF(@"C:\fti\sample_files\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\fti\sample_files\ms_normal.bclyt");
-            TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
-            //TestDaigasso();
+            //TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
+            TestDaigasso();
 
-            
+            //TestListDaigassoTxt1s();
+            //TestDaigassoImageConversion();
+
+
+
 
             return;
 
