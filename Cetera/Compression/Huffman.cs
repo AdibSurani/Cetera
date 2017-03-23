@@ -1,8 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 using Cetera.IO;
 
@@ -13,20 +10,19 @@ namespace Cetera.Compression
         //supports 4bit & 8bit
         public static byte[] Decompress(Stream instream, int num_bits, long decompressedLength)
         {
-            int count = 0;
-            using (BinaryReaderX br = new BinaryReaderX(instream, true))
+            using (var br = new BinaryReaderX(instream, true))
             {
-                List<byte> result = new List<byte>();
+                var result = new List<byte>();
 
-                byte tree_size = br.ReadByte(); count++;
-                byte tree_root = br.ReadByte(); count++;
-                byte[] tree_buffer = br.ReadBytes(tree_size * 2); count += tree_size * 2;
+                var tree_size = br.ReadByte();
+                var tree_root = br.ReadByte();
+                var tree_buffer = br.ReadBytes(tree_size * 2);
 
                 for (int i = 0, code = 0, next = 0, pos = tree_root; ; i++)
                 {
                     if (i % 32 == 0)
                     {
-                        code = br.ReadInt32(); count += 4;
+                        code = br.ReadInt32();
                     }
                     next += (pos & 0x3F) * 2 + 2;
                     int direction = (code >> (31 - i)) % 2 == 0 ? 2 : 1;

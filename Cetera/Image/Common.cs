@@ -50,13 +50,6 @@ namespace Cetera.Image
     {
         static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max - 1);
 
-        static int PadDimension(int n, bool po2)
-        {
-            n = (n + 7) & ~7;
-            if (po2) n = 2 << (int)Math.Log(n - 1, 2);
-            return n;
-        }
-
         static IEnumerable<Color> GetColorsFromTexture(byte[] tex, Format format)
         {
             using (var br = new BinaryReaderX(new MemoryStream(tex)))
@@ -175,7 +168,7 @@ namespace Cetera.Image
             }
         }
 
-        public unsafe static Bitmap Load(byte[] tex, ImageSettings settings)
+        public static Bitmap Load(byte[] tex, ImageSettings settings)
         {
             int width = settings.Width, height = settings.Height;
             var colors = GetColorsFromTexture(tex, settings.Format);
@@ -207,9 +200,6 @@ namespace Cetera.Image
             var points = GetPointSequence(settings);
 
             var ms = new MemoryStream();
-            int width = bmp.Width, height = bmp.Height;
-
-            var etc1colors = new Queue<Color>();
             var etc1encoder = new ETC1.Encoder();
 
             using (var bw = new BinaryWriterX(ms))

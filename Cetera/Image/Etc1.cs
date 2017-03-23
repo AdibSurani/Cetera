@@ -38,12 +38,12 @@ namespace Cetera.Image
 
             public static RGB operator +(RGB c, int mod) => new RGB(Clamp(c.R + mod), Clamp(c.G + mod), Clamp(c.B + mod));
             public static int operator -(RGB c1, RGB c2) => ErrorRGB(c1.R - c2.R, c1.G - c2.G, c1.B - c2.B);
-            public static RGB Average(IEnumerable<RGB> src) => new RGB((int)src.Average(c => c.R), (int)src.Average(c => c.G), (int)src.Average(c => c.B));
+            public static RGB Average(RGB[] src) => new RGB((int)src.Average(c => c.R), (int)src.Average(c => c.G), (int)src.Average(c => c.B));
             public RGB Scale(int limit) => limit == 16 ? new RGB(R * 17, G * 17, B * 17) : new RGB((R << 3) | (R >> 2), (G << 3) | (G >> 2), (B << 3) | (B >> 2));
             public RGB Unscale(int limit) => new RGB(R * limit / 256, G * limit / 256, B * limit / 256);
 
             public override int GetHashCode() => R | (G << 8) | (B << 16);
-            public override bool Equals(object obj) => GetHashCode() == obj.GetHashCode();
+            public override bool Equals(object obj) => obj != null && GetHashCode() == obj.GetHashCode();
             public static bool operator ==(RGB c1, RGB c2) => c1.Equals(c2);
             public static bool operator !=(RGB c1, RGB c2) => !c1.Equals(c2);
         }
@@ -182,11 +182,8 @@ namespace Cetera.Image
         }
 
         static int Clamp(int n) => Math.Max(0, Math.Min(n, 255));
-        static int Sign3(int n) => ((n + 4) % 8) - 4;
-        static int Extend5to8(int n) => (n << 3) | (n >> 2);
-        static int Square(int n) => n * n;
-        //static int ErrorRGB(int r, int g, int b) => Square(r) + Square(g) + Square(b); // standard version used in rg_etc1
-        static int ErrorRGB(int r, int g, int b) => 2 * Square(r) + 4 * Square(g) + 3 * Square(b); // human perception
+        static int Sign3(int n) => (n + 4) % 8 - 4;
+        static int ErrorRGB(int r, int g, int b) => 2 * r * r + 4 * g * g + 3 * b * b; // human perception
 
         public class Decoder
         {
@@ -392,11 +389,11 @@ namespace Cetera.Image
                 {
                     var allpixels0 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 0).ToArray();
                     var pixels0 = allpixels0.Distinct().ToArray();
-                    if (pixels0.Count() > 4) continue;
+                    if (pixels0.Length > 4) continue;
 
                     var allpixels1 = colors.Where((c, j) => (j / (flip ? 2 : 8)) % 2 == 1).ToArray();
                     var pixels1 = allpixels1.Distinct().ToArray();
-                    if (pixels1.Count() > 4) continue;
+                    if (pixels1.Length > 4) continue;
 
                     foreach (var diff in new[] { false, true })
                     {
@@ -420,13 +417,12 @@ namespace Cetera.Image
                             if (soln0 == null) continue;
 
                             var opt1 = new Optimizer(allpixels1, 16, 1);
-                            Solution soln1 = null;
                             foreach (var ti in tables1)
                             {
                                 var rs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.R))).ToArray();
                                 var gs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.G))).ToArray();
                                 var bs = Enumerable.Range(0, 16).Where(a => pixels1.All(c => lookup16big[ti][a].Contains(c.B))).ToArray();
-                                soln1 = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
+                                var soln1 = opt1.FindExactMatches(from r in rs from g in gs from b in bs select new RGB(r, g, b), modifiers[ti]).FirstOrDefault();
                                 if (soln1 != null)
                                 {
                                     block = new SolutionSet(flip, diff, soln0, soln1).ToBlock();

@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Cetera.Compression;
 using Cetera.Image;
 using Cetera.IO;
@@ -69,7 +65,8 @@ namespace Cetera.Font
         CharacterMap GetCharacterMap(char c)
         {
             CharacterMap result;
-            var success = dicGlyphLarge.TryGetValue(c, out result) || dicGlyphLarge.TryGetValue('?', out result);
+            if (!dicGlyphLarge.TryGetValue(c, out result))
+                dicGlyphLarge.TryGetValue('?', out result);
             return result;
         }
 

@@ -4,8 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Cetera.IO;
 
 namespace Cetera.Archive
@@ -48,10 +46,10 @@ namespace Cetera.Archive
         {
             using (var br = new BinaryReaderX(input))
             {
-                var header = br.ReadStruct<Header>();
+                // @todo: the header is currently unused
+                br.ReadStruct<Header>();
 
-                var lst = new List<TableEntry>();
-                lst.Add(br.ReadStruct<TableEntry>());
+                var lst = new List<TableEntry> {br.ReadStruct<TableEntry>()};
                 for (int i = 0; i < lst[0].size - 1; i++)
                     lst.Add(br.ReadStruct<TableEntry>());
 

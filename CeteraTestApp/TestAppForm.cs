@@ -47,7 +47,7 @@ namespace CeteraTestApp
                     BackgroundImage = new BXLIM(File.OpenRead(path)).Image;
                     break;
                 case ".jtex":
-                    BackgroundImage = new JTEX(File.OpenRead(path)).Image;
+                    BackgroundImage = new JTEX(File.OpenRead(path), false).Image;
                     break;
                 case ".msbt":
                     var msbt = new MSBT(File.OpenRead(path));
@@ -138,7 +138,7 @@ namespace CeteraTestApp
 
         void TestRecompressEtc1()
         {
-            var settings = new Settings { Format = Format.ETC1A4 };
+            var settings = new ImageSettings { Format = Format.ETC1A4 };
             var stp = Stopwatch.StartNew();
             var tmp1 = Common.Save((Bitmap)BackgroundImage, settings);
             Text = stp.Elapsed.ToString();
@@ -182,7 +182,6 @@ namespace CeteraTestApp
                         if (txtBox.string_length == 0) throw new Exception();
                         Debug.WriteLine('\t' + $"<{txt.Magic} name=\"{txtPane.name}\" width=\"{txtPane.size.x}\"{blah} text=\"{tuple.Item3.Replace("\n", "\\n")}\">");
                     }
-                    int k = 1;
                 }
             }
         }
@@ -199,7 +198,7 @@ namespace CeteraTestApp
                     if (!item.Path.EndsWith(".bclyt")) continue;
                     //Debug.WriteLine(Path.GetFileName(path) + "\\" + Path.GetFileName(item.Path));
                     var bclyt = new BCLYT(new MemoryStream(item.Data));
-                    if (!bclyt.sections.Any(sec => sec.Magic == "txt1")) continue;
+                    if (bclyt.sections.All(sec => sec.Magic != "txt1")) continue;
                     //if (Path.GetFileNameWithoutExtension(path) != Path.GetFileNameWithoutExtension(item.Path)) Debug.WriteLine(path);
                     Debug.WriteLine(path.Substring(57) + "\\" + Path.GetFileName(item.Path));
                     foreach (var txt in bclyt.sections.Where(s => s.Magic == "txt1"))
@@ -229,7 +228,6 @@ namespace CeteraTestApp
                         if (x.Contains('|'))
                             set.Add(x);
                     }
-                    int k = 1;
                 }
             }
             Debug.WriteLine(string.Join("\n", set));
@@ -262,6 +260,15 @@ namespace CeteraTestApp
             }
         }
 
+        public void TestCodeBins()
+        {
+            foreach (var path in Directory.GetFiles(@"C:\Users\Adib\Desktop\lotsofcode", "*.bin"))
+            {
+                Debug.WriteLine(path);
+                Debug.WriteLine(OnionFS.DoStuff(File.ReadAllBytes(path)));
+            }
+        }
+
         public TestAppForm()
         {
             InitializeComponent();
@@ -285,7 +292,9 @@ namespace CeteraTestApp
             //TestXF(@"C:\fti\sample_files\nrm_main.xf", "Time Travelers （タイムトラベラーズ Taimu Toraberazu） is a video game \"without a genre\" developed by Level-5");
             //TestLayout(@"C:\fti\sample_files\ms_normal.bclyt");
             //TestLayout(@"C:\Users\Adib\Downloads\Game_over.bclyt");
-            TestDaigasso();
+            //TestDaigasso();
+
+            TestCodeBins();
 
             //TestListDaigassoTxt1s();
             //TestDaigassoImageConversion();

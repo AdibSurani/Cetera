@@ -1,17 +1,14 @@
-using Cetera.IO;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Cetera.Compression;
 using Cetera.Image;
+using Cetera.IO;
 using Cetera.Properties;
 
 namespace Cetera.Font
@@ -114,7 +111,8 @@ namespace Cetera.Font
         int GetIndex(char c)
         {
             int result;
-            var success = dicCMAP.TryGetValue(c, out result) || dicCMAP.TryGetValue('?', out result);
+            if (!dicCMAP.TryGetValue(c, out result))
+                dicCMAP.TryGetValue('?', out result);
             return result;
         }
 
@@ -161,7 +159,8 @@ namespace Cetera.Font
         {
             using (var br = new BinaryReaderX(input))
             {
-                var cfnt = br.ReadStruct<CFNT>();
+                // @todo: read as sections
+                br.ReadStruct<CFNT>();
                 finf = br.ReadStruct<FINF>();
 
                 // read TGLP

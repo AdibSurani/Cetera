@@ -1,7 +1,5 @@
-using System;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using Cetera.IO;
 using Cetera.Compression;
@@ -34,10 +32,10 @@ namespace Cetera.Image
             public int width;
             public int height;
 
-            public Format format => (Format)(formTmp & 0xFF);
+            public Format Format => (Format)(formTmp & 0xFF);
         }
 
-        public bool lz11_compressed = false;
+        public bool lz11_compressed;
 
         public Header JTEXHeader { get; private set; }
         public RawHeader JTEXRawHeader;
@@ -71,12 +69,13 @@ namespace Cetera.Image
                 modifiedJTEXHeader.width = (short)Image.Width;
                 modifiedJTEXHeader.height = (short)Image.Height;
 
-                var settings = new ImageSettings();
-                settings.Width = modifiedJTEXHeader.width;
-                settings.Height = modifiedJTEXHeader.height;
-                settings.Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format);
-
-                byte[] texture = Common.Save(Image, settings);
+                var settings = new ImageSettings
+                {
+                    Width = modifiedJTEXHeader.width,
+                    Height = modifiedJTEXHeader.height,
+                    Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format)
+                };
+                var texture = Common.Save(Image, settings);
                 modifiedJTEXHeader.unk3[0] = texture.Length;
                 JTEXHeader = modifiedJTEXHeader;
 
@@ -94,10 +93,8 @@ namespace Cetera.Image
                 if (br.ReadByte() == 0x11)
                 {
                     br.BaseStream.Position = 0;
-                    uint size = br.ReadUInt32() >> 8;
-                    br.BaseStream.Position = 0;
                     lz11_compressed = true;
-                    byte[] decomp = LZ11.Decompress(br.BaseStream);
+                    var decomp = LZ11.Decompress(br.BaseStream);
                     stream = new MemoryStream(decomp);
                 }
                 else
@@ -108,11 +105,11 @@ namespace Cetera.Image
 
                 //File.OpenWrite("test.decomp").Write(new BinaryReaderX(stream).ReadBytes((int)stream.Length), 0, (int)stream.Length);
 
-                using (BinaryReaderX br2 = new BinaryReaderX(stream))
+                using (var br2 = new BinaryReaderX(stream))
                 {
                     JTEXRawHeader = br2.ReadStruct<RawHeader>();
                     br2.BaseStream.Position = JTEXRawHeader.dataStart;
-                    Settings = new ImageSettings { Width = JTEXRawHeader.width, Height = JTEXRawHeader.height, Format = JTEXRawHeader.format };
+                    Settings = new ImageSettings { Width = JTEXRawHeader.width, Height = JTEXRawHeader.height, Format = JTEXRawHeader.Format };
                     Image = Common.Load(br2.ReadBytes((int)(br2.BaseStream.Length - br2.BaseStream.Position)), Settings);
                 }
             }
@@ -120,22 +117,22 @@ namespace Cetera.Image
 
         public void SaveRaw(Stream output)
         {
-            ImageSettings modSettings = Settings;
+            var modSettings = Settings;
             modSettings.Width = Image.Width;
             modSettings.Height = Image.Height;
 
-            byte[] data = Common.Save(Image, modSettings);
-            using (BinaryWriterX br = new BinaryWriterX(new MemoryStream()))
+            var data = Common.Save(Image, modSettings);
+            using (var br = new BinaryWriterX(new MemoryStream()))
             {
                 JTEXRawHeader.width = (ushort)Image.Width; JTEXRawHeader.height = (ushort)Image.Height;
-                br.WriteStruct<RawHeader>(JTEXRawHeader);
+                br.WriteStruct(JTEXRawHeader);
                 br.BaseStream.Position = JTEXRawHeader.dataStart;
                 br.Write(data);
                 br.BaseStream.Position = 0;
 
                 if (lz11_compressed)
                 {
-                    byte[] comp = LZ11.Compress(br.BaseStream);
+                    var comp = LZ11.Compress(br.BaseStream);
                     output.Write(comp, 0, comp.Length);
                 }
                 else

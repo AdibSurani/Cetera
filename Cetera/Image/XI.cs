@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Cetera.Compression;
 using Cetera.IO;
 
@@ -70,15 +66,11 @@ namespace Cetera.Image
                 var buf2 = CriWare.GetDecompressedBytes(input);
 
                 var ms = new MemoryStream();
-                using (var bw = new BinaryWriter(ms))
+                for (int i = 0; i < buf1.Length / 2; i++)
                 {
-                    for (int i = 0; i < buf1.Length / 2; i++)
-                    {
-                        int index = BitConverter.ToInt16(buf1, 2 * i);
-                        ms.Write(buf2, index * header.bytesPerTile, header.bytesPerTile);
-                    }
+                    int index = BitConverter.ToInt16(buf1, 2 * i);
+                    ms.Write(buf2, index * header.bytesPerTile, header.bytesPerTile);
                 }
-                var tmp = ms.ToArray();
                 Image = Common.Load(ms.ToArray(), Settings);
             }
         }

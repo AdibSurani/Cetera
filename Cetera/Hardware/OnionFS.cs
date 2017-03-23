@@ -1,14 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Cetera.Hardware
 {
     public class OnionFS
     {
-        public unsafe static string DoStuff(byte[] codeBin)
+        public static unsafe string DoStuff(byte[] codeBin)
         {
             fixed (byte* bytePtr = codeBin)
             {
@@ -17,7 +15,9 @@ namespace Cetera.Hardware
                 Func<Func<int, bool>, int> FindFunc = pred =>
                 {
                     var x = range.Where(pred).Single();
-                    while ((ptr[--x] >> 16) != 0xE92D) ;
+                    while (ptr[--x] >> 16 != 0xE92D)
+                    {
+                    }
                     return 0x100000 + x * 4;
                 };
 
@@ -34,6 +34,10 @@ namespace Cetera.Hardware
                 var throwFatalError = FindFunc(i => (ptr[i] == (0xEB000000 | (uint)(svc2D - i - 3) & 0xFFFFFF))
                     && Enumerable.Range(0, 999).Select(j => ptr[i + j + 1]).TakeWhile(p => (p >> 16) != 0xE92D).All(p => p != 0xE200167E));
                 sb.AppendLine($"throwFatalError equ 0x{throwFatalError:X6}");
+
+                //var patchOffset = range.Single(i => ptr[i] == 0xE1A02000 && ptr[i + 1] == 0xE59F1070 && ptr[i + 2] == 0xE59F0064 && ptr[i + 3] == 0xE3A03000);
+                //sb.AppendLine($"{ptr[patchOffset + 10]:X8}");
+
                 return sb.ToString();
             }
         }

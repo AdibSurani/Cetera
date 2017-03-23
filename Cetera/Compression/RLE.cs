@@ -1,10 +1,7 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Cetera.IO;
 using System.IO;
+using System.Linq;
+using Cetera.IO;
 
 namespace Cetera.Compression
 {
@@ -12,17 +9,16 @@ namespace Cetera.Compression
     {
         public static byte[] Decompress(Stream instream, long decompressedLength)
         {
-            using (BinaryReaderX br = new BinaryReaderX(instream, true))
+            using (var br = new BinaryReaderX(instream, true))
             {
-                List<byte> result = new List<byte>();
+                var result = new List<byte>();
 
                 while (true)
                 {
-                    byte flag = br.ReadByte();
-                    if (flag >= 128)
-                        result.AddRange(Enumerable.Repeat(br.ReadByte(), flag - 128 + 3));
-                    else
-                        result.AddRange(br.ReadBytes(flag + 1));
+                    var flag = br.ReadByte();
+                    result.AddRange(flag >= 128
+                        ? Enumerable.Repeat(br.ReadByte(), flag - 128 + 3)
+                        : br.ReadBytes(flag + 1));
 
                     if (result.Count == decompressedLength)
                     {
