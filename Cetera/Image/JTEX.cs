@@ -1,5 +1,7 @@
+using System;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Cetera.IO;
 using Cetera.Compression;
@@ -22,42 +24,19 @@ namespace Cetera.Image
             public int[] unk3;
         }
 
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public struct RawHeader
-        {
-            public uint dataStart;
-            uint formTmp;
-            uint unk1;
-            uint unk2;
-            public int width;
-            public int height;
-
-            public Format Format => (Format)(formTmp & 0xFF);
-        }
-
-        public bool lz11_compressed;
-
         public Header JTEXHeader { get; private set; }
-        public RawHeader JTEXRawHeader;
         public Bitmap Image { get; set; }
         public ImageSettings Settings { get; set; }
 
-        public JTEX(Stream input, bool raw)
+        public JTEX(Stream input)
         {
-            if (raw)
+            using (var br = new BinaryReaderX(input))
             {
-                LoadRaw(input);
-            }
-            else
-            {
-                using (var br = new BinaryReaderX(input))
-                {
-                    JTEXHeader = br.ReadStruct<Header>();
-                    Settings = new ImageSettings { Width = JTEXHeader.width, Height = JTEXHeader.height };
-                    Settings.SetFormat(JTEXHeader.format);
-                    var texture2 = br.ReadBytes(JTEXHeader.unk3[0]); // bytes to read?
-                    Image = Common.Load(texture2, Settings);
-                }
+                JTEXHeader = br.ReadStruct<Header>();
+                Settings = new ImageSettings { Width = JTEXHeader.width, Height = JTEXHeader.height };
+                Settings.SetFormat(JTEXHeader.format);
+                var texture2 = br.ReadBytes(JTEXHeader.unk3[0]); // bytes to read?
+                Image = Common.Load(texture2, Settings);
             }
         }
 
@@ -69,77 +48,17 @@ namespace Cetera.Image
                 modifiedJTEXHeader.width = (short)Image.Width;
                 modifiedJTEXHeader.height = (short)Image.Height;
 
-                var settings = new ImageSettings
-                {
-                    Width = modifiedJTEXHeader.width,
-                    Height = modifiedJTEXHeader.height,
-                    Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format)
-                };
-                var texture = Common.Save(Image, settings);
+                var settings = new ImageSettings();
+                settings.Width = modifiedJTEXHeader.width;
+                settings.Height = modifiedJTEXHeader.height;
+                settings.Format = ImageSettings.ConvertFormat(modifiedJTEXHeader.format);
+
+                byte[] texture = Common.Save(Image, settings);
                 modifiedJTEXHeader.unk3[0] = texture.Length;
                 JTEXHeader = modifiedJTEXHeader;
 
                 bw.WriteStruct(JTEXHeader);
                 bw.Write(texture);
-            }
-        }
-
-        public void LoadRaw(Stream input)
-        {
-            using (var br = new BinaryReaderX(input))
-            {
-                Stream stream;
-
-                if (br.ReadByte() == 0x11)
-                {
-                    br.BaseStream.Position = 0;
-                    lz11_compressed = true;
-                    var decomp = LZ11.Decompress(br.BaseStream);
-                    stream = new MemoryStream(decomp);
-                }
-                else
-                {
-                    br.BaseStream.Position = 0;
-                    stream = br.BaseStream;
-                }
-
-                //File.OpenWrite("test.decomp").Write(new BinaryReaderX(stream).ReadBytes((int)stream.Length), 0, (int)stream.Length);
-
-                using (var br2 = new BinaryReaderX(stream))
-                {
-                    JTEXRawHeader = br2.ReadStruct<RawHeader>();
-                    br2.BaseStream.Position = JTEXRawHeader.dataStart;
-                    Settings = new ImageSettings { Width = JTEXRawHeader.width, Height = JTEXRawHeader.height, Format = JTEXRawHeader.Format };
-                    Image = Common.Load(br2.ReadBytes((int)(br2.BaseStream.Length - br2.BaseStream.Position)), Settings);
-                }
-            }
-        }
-
-        public void SaveRaw(Stream output)
-        {
-            var modSettings = Settings;
-            modSettings.Width = Image.Width;
-            modSettings.Height = Image.Height;
-
-            var data = Common.Save(Image, modSettings);
-            using (var br = new BinaryWriterX(new MemoryStream()))
-            {
-                JTEXRawHeader.width = (ushort)Image.Width; JTEXRawHeader.height = (ushort)Image.Height;
-                br.WriteStruct(JTEXRawHeader);
-                br.BaseStream.Position = JTEXRawHeader.dataStart;
-                br.Write(data);
-                br.BaseStream.Position = 0;
-
-                if (lz11_compressed)
-                {
-                    var comp = LZ11.Compress(br.BaseStream);
-                    output.Write(comp, 0, comp.Length);
-                }
-                else
-                {
-                    output.Write(new BinaryReaderX(br.BaseStream).ReadBytes((int)br.BaseStream.Length), 0, (int)br.BaseStream.Length);
-                }
-                output.Close();
             }
         }
     }
