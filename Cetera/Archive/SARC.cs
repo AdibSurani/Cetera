@@ -24,7 +24,6 @@ namespace Cetera.Archive
             public SFATNode nodeEntry;
             public SimplerSFATNode sNodeEntry;
             public String fileName;
-            public byte[] fileData;
         }
         public enum State : byte
         {
@@ -40,9 +39,18 @@ namespace Cetera.Archive
             uint unk1;
             uint unk2;
         }
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public struct SimplerSFATNode
+        public class SimplerSFATNode
         {
+            public SimplerSFATNode(Stream input)
+            {
+                using (BinaryReaderX br = new BinaryReaderX(input, true))
+                {
+                    hash = br.ReadUInt32();
+                    dataStart = br.ReadUInt32();
+                    dataLength = br.ReadUInt32();
+                    unk1 = br.ReadUInt32();
+                }
+            }
             public uint hash;
             public uint dataStart;
             public uint dataLength;
@@ -69,9 +77,19 @@ namespace Cetera.Archive
             uint hashMultiplier;
         }
 
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        public struct SFATNode
+        public class SFATNode
         {
+            public SFATNode(Stream input)
+            {
+                using (BinaryReaderX br = new BinaryReaderX(input, true))
+                {
+                    nameHash = br.ReadUInt32();
+                    SFNTOffset = br.ReadUInt16();
+                    unk1 = br.ReadUInt16();
+                    dataStart = br.ReadUInt32();
+                    dataEnd = br.ReadUInt32();
+                }
+            }
             public uint nameHash;
             public ushort SFNTOffset;
             public ushort unk1;
@@ -153,12 +171,6 @@ namespace Cetera.Archive
                         } while (tmp == 0x00);
                         br.BaseStream.Position -= 1;
                     }
-
-                    for (int i = 0; i < sfatHeader.nodeCount; i++)
-                    {
-                        br.BaseStream.Position = sarcHeader.dataOffset + this[i].nodeEntry.dataStart;
-                        this[i].fileData = br.ReadBytes((int)(this[i].nodeEntry.dataEnd - this[i].nodeEntry.dataStart));
-                    }
                 }
             }
         }
@@ -180,7 +192,6 @@ namespace Cetera.Archive
                 {
                     br.BaseStream.Position = this[i].sNodeEntry.dataStart;
                     this[i].fileName = "File" + i.ToString();
-                    this[i].fileData = br.ReadBytes((int)this[i].sNodeEntry.dataLength);
                 }
             }
         }
